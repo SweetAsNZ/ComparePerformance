@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compare Catamarans | Performance, Polars & Technical Specifications</title>
+  <meta name="description" content="Side-by-side performance comparison of 3 cruising and performance catamarans based on Bruce Number, Kelsall Index, SA/D, D/L, and VPP Polars.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-container">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 18l3-12 15 12H3zm13.5-3.5L12 9.5l-4.5 5h9zM4 20h16a1 1 0 000-2H4a1 1 0 000 2z"/>
+          </svg>
+        </div>
+        <div class="logo-title">
+          <h1>Catamaran Performance Comparator</h1>
+          <p>Naval Architecture & Multihull Performance Indicators</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="unit-toggle-group">
+          <button id="unitMetricBtn" class="unit-btn active" title="Show measurements in meters, kg, liters">Metric</button>
+          <button id="unitImperialBtn" class="unit-btn" title="Show measurements in feet, lbs, US gal">Imperial</button>
+        </div>
+
+        <div class="header-actions">
+          <button id="btnShare" class="btn-icon" title="Copy link with selected boats">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            <span>Share</span>
+          </button>
+          <button id="btnPrint" class="btn-icon" title="Print comparison report">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>Print</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-wrapper">
+
+    <!-- 3-Boat Selector Bar -->
+    <section class="selector-bar">
+      <div class="selector-grid">
+        <div class="selector-col boat1">
+          <div class="selector-label boat1">
+            <span>● Boat Model 1</span>
+            <small>Primary</small>
+          </div>
+          <select id="boatSelect1" class="boat-select-dropdown" aria-label="Select Boat 1"></select>
+        </div>
+
+        <div class="selector-col boat2">
+          <div class="selector-label boat2">
+            <span>● Boat Model 2</span>
+            <small>Comparison</small>
+          </div>
+          <select id="boatSelect2" class="boat-select-dropdown" aria-label="Select Boat 2"></select>
+        </div>
+
+        <div class="selector-col boat3">
+          <div class="selector-label boat3">
+            <span>● Boat Model 3</span>
+            <small>Comparison</small>
+          </div>
+          <select id="boatSelect3" class="boat-select-dropdown" aria-label="Select Boat 3"></select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Top 3 Hero Cards -->
+    <section class="hero-cards-grid" id="heroCardsContainer"></section>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav">
+      <button class="tab-nav-btn active" data-tab="tabIndicators">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        Performance Indicators
+      </button>
+
+      <button class="tab-nav-btn" data-tab="tabPolars">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/>
+        </svg>
+        Polar Diagrams & Radar
+      </button>
+
+      <button class="tab-nav-btn" data-tab="tabSimulator">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H5a1 1 0 0 1 0-2h-.93A8 8 0 0 1 11 4.07V5a1 1 0 0 1 2 0v-.93A8 8 0 0 1 19.93 11H19a1 1 0 0 1 0 2h.93A8 8 0 0 1 13 16.93z"/>
+        </svg>
+        VPP Wind Speed Simulator
+      </button>
+
+      <button class="tab-nav-btn" data-tab="tabSpecs">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+        Full Technical Specs
+      </button>
+
+      <button class="tab-nav-btn" data-tab="tabMath">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        Mathematical Formulas
+      </button>
+    </nav>
+
+    <!-- Tab 1: Performance Indicators -->
+    <div id="tabIndicators" class="tab-pane active">
+      <div class="section-card">
+        <div class="section-title-wrap">
+          <div>
+            <h2 class="section-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon points="12 6 12 12 16 14"></polygon>
+              </svg>
+              Key Multihull Performance Indicators
+            </h2>
+            <p class="section-subtitle">Visual dynamic gauges comparing potential speed, power-to-weight, and hydrodynamic resistance across 4 classification bands.</p>
+          </div>
+        </div>
+
+        <div class="performance-indicators-container" id="indicatorsContainer"></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Polar Diagrams & Radar -->
+    <div id="tabPolars" class="tab-pane">
+      <div class="section-card">
+        <div class="section-title-wrap">
+          <div>
+            <h2 class="section-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+              Polar Performance Curves & Multi-Factor Radar
+            </h2>
+            <p class="section-subtitle">Comparative theoretical boat speeds across true wind angles (35° to 180°) and multi-dimensional design analysis.</p>
+          </div>
+        </div>
+
+        <div class="chart-view-grid">
+          <!-- Polar Curve Canvas Box -->
+          <div class="chart-canvas-box">
+            <div class="polar-controls-bar">
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-dot boat1"></span><span>Boat 1</span></div>
+                <div class="legend-item"><span class="legend-dot boat2"></span><span>Boat 2</span></div>
+                <div class="legend-item"><span class="legend-dot boat3"></span><span>Boat 3</span></div>
+              </div>
+
+              <div class="tws-pills" id="twsPillsContainer">
+                <button class="tws-pill" data-tws="8">8 kn Wind</button>
+                <button class="tws-pill" data-tws="12">12 kn</button>
+                <button class="tws-pill active" data-tws="16">16 kn</button>
+                <button class="tws-pill" data-tws="20">20 kn</button>
+                <button class="tws-pill" data-tws="25">25 kn</button>
+                <button class="tws-pill" data-tws="all">All TWS</button>
+              </div>
+            </div>
+
+            <canvas id="polarCanvas" class="chart-canvas"></canvas>
+          </div>
+
+          <!-- Radar Matrix Canvas Box -->
+          <div class="chart-canvas-box">
+            <div class="polar-controls-bar">
+              <div class="radar-header-title">
+                Design Balance Radar Matrix (0–10 Scale)
+              </div>
+            </div>
+            <canvas id="radarCanvas" class="chart-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: VPP Real-Time Simulator -->
+    <div id="tabSimulator" class="tab-pane">
+      <div class="section-card">
+        <div class="section-title-wrap">
+          <div>
+            <h2 class="section-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              Velocity Prediction Program (VPP) Simulator
+            </h2>
+            <p class="section-subtitle">Adjust true wind speed and true wind angle to extrapolate real-time boat speeds for all 3 catamarans.</p>
+          </div>
+        </div>
+
+        <div class="vpp-simulator-box">
+          <div class="simulator-controls">
+            <div class="sim-slider-group">
+              <label for="simTwsInput" class="sim-slider-label">
+                <span>True Wind Speed (TWS)</span>
+                <span id="simTwsVal" class="val">16 kn</span>
+              </label>
+              <input type="range" id="simTwsInput" class="range-input" min="5" max="30" value="16" step="1" title="Adjust True Wind Speed in knots" aria-label="True Wind Speed in knots">
+            </div>
+
+            <div class="sim-slider-group">
+              <label for="simTwaInput" class="sim-slider-label">
+                <span>True Wind Angle (TWA)</span>
+                <span id="simTwaVal" class="val">90°</span>
+              </label>
+              <input type="range" id="simTwaInput" class="range-input" min="30" max="180" value="90" step="5" title="Adjust True Wind Angle in degrees" aria-label="True Wind Angle in degrees">
+            </div>
+          </div>
+
+          <div class="vpp-results-grid" id="simResultsContainer"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Full Technical Specs Table -->
+    <div id="tabSpecs" class="tab-pane">
+      <div class="section-card">
+        <div class="section-title-wrap">
+          <div>
+            <h2 class="section-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+              Complete Technical Specifications Table
+            </h2>
+            <p class="section-subtitle">Official manufacturer specifications, tank capacities, construction materials, accommodation options, and naval ratios.</p>
+          </div>
+        </div>
+
+        <div class="specs-table-container">
+          <table class="specs-table">
+            <thead>
+              <tr>
+                <th>Specification</th>
+                <th id="specsBoatHeader1" class="boat1-col">Boat 1</th>
+                <th id="specsBoatHeader2" class="boat2-col">Boat 2</th>
+                <th id="specsBoatHeader3" class="boat3-col">Boat 3</th>
+              </tr>
+            </thead>
+            <tbody id="specsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Mathematical Formulas & Guide -->
+    <div id="tabMath" class="tab-pane">
+      <div class="section-card">
+        <div class="section-title-wrap">
+          <div>
+            <h2 class="section-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="4" y1="9" x2="20" y2="9"></line>
+                <line x1="4" y1="15" x2="20" y2="15"></line>
+                <line x1="10" y1="3" x2="8" y2="21"></line>
+                <line x1="16" y1="3" x2="14" y2="21"></line>
+              </svg>
+              Naval Architecture Formulas & Performance Ratios
+            </h2>
+            <p class="section-subtitle">The standard hydrodynamics and mathematical definitions used by CatamaranShow and multihull yacht designers.</p>
+          </div>
+        </div>
+
+        <div class="math-guide-grid">
+          <div class="math-card">
+            <h4>1. Bruce Number (Multihull Power-to-Weight)</h4>
+            <div class="formula-box">Bruce Number = √[ Sail Area (sq ft) ] / ∛[ Displacement (lbs) ]</div>
+            <p>Developed by Edmond Bruce, this dimensionless coefficient measures the driving power per pound of displacement. A standard cruising catamaran scores 1.1–1.25, high-performance cruisers score 1.25–1.45, and grand prix racing multihulls exceed 1.45.</p>
+          </div>
+
+          <div class="math-card">
+            <h4>2. Derek Kelsall Performance Index</h4>
+            <div class="formula-box">Kelsall Index = [ LWL (ft) × Bruce Number ] / 70</div>
+            <p>Formulated by legendary multihull pioneer Derek Kelsall. It incorporates the waterline length ($LWL$) into the Bruce Number, recognizing that longer waterlines reduce wave-making resistance and produce higher hull speeds.</p>
+          </div>
+
+          <div class="math-card">
+            <h4>3. Sail Area / Displacement (SA/D)</h4>
+            <div class="formula-box">SA/D = Sail Area (sq ft) / [ Displacement (lbs) / 64 ]^(2/3)</div>
+            <p>The universal yacht design metric for sail horsepower relative to wetted volume. Cruising cats are typically 19–23, performance cruisers 24–30, and high-performance racing catamarans 30–40+.</p>
+          </div>
+
+          <div class="math-card">
+            <h4>4. Displacement / Length Ratio (D/L)</h4>
+            <div class="formula-box">D/L = [ Displacement (long tons) ] / [ 0.01 × LWL (ft) ]³</div>
+            <p>Measures the lightness and fineness of the hulls relative to length. Lower numbers mean less resistance. Cruising cats are 130–180, performance cruisers are 75–125, and ultra-light racers are under 70.</p>
+          </div>
+
+          <div class="math-card">
+            <h4>5. Sail Performance (% of Windspeed)</h4>
+            <div class="formula-box">Sail Performance (%) = [ Estimated Boat Speed / True Wind Speed ] × 100</div>
+            <p>Calculates the percentage of true wind speed a catamaran achieves on a reach under 15 knots of wind. Heavy charter catamarans achieve 60–65%, performance catamarans reach 75–85%, and foiling or ultra-light designs achieve 90–110%+.</p>
+          </div>
+
+          <div class="math-card">
+            <h4>6. Bridgedeck Clearance to Length Ratio</h4>
+            <div class="formula-box">Bridgedeck Ratio = Bridgedeck Clearance (m) / LWL (m)</div>
+            <p>Higher clearance prevents slamming in ocean swells. A clearance ratio above 0.055–0.065 is considered optimal for offshore bluewater comfort and wave passage.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <p>Catamaran Performance Comparator • Based on Naval Architecture & VPP Polars</p>
+      <p class="footer-source-note">Data verified against manufacturer specifications and <a href="https://www.catamaranshow.com" target="_blank" rel="noopener">CatamaranShow.com</a></p>
+    </div>
+  </footer>
+
+  <!-- Toast Notification -->
+  <div id="toastNotice" class="toast-notice"></div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="calculations.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
