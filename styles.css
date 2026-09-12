@@ -793,25 +793,44 @@ body {
   justify-content: center;
 }
 
-/* VPP Simulator */
-.vpp-simulator-box {
+/* VPP Simulator & Sail Reefing Layout */
+.vpp-layout-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 1.75rem;
+}
+
+@media (max-width: 1100px) {
+  .vpp-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vpp-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sim-section-box {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 1.5rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.simulator-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-@media (max-width: 650px) {
-  .simulator-controls {
-    grid-template-columns: 1fr;
-  }
+.sim-section-header {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--brand-cyan);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .sim-slider-group {
@@ -823,7 +842,8 @@ body {
 .sim-slider-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.85rem;
+  align-items: baseline;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -831,67 +851,256 @@ body {
 .sim-slider-label span.val {
   color: var(--brand-cyan);
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
-.range-input {
-  width: 100%;
-  height: 6px;
+.preset-buttons-row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+.preset-btn, .preset-twa-btn {
   background: var(--bg-input);
-  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover, .preset-twa-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.preset-btn.active, .preset-twa-btn.active {
+  background: var(--brand-blue);
+  color: #fff;
+  border-color: var(--brand-blue);
+}
+
+.sim-config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sim-config-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.config-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.sim-select-dropdown {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
   outline: none;
   cursor: pointer;
-  accent-color: var(--brand-cyan);
+  transition: border-color 0.2s;
 }
 
+.sim-select-dropdown:focus {
+  border-color: var(--brand-cyan);
+}
+
+/* Vector Plotter & Compass Box */
+.vpp-telemetry-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sim-vector-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+}
+
+.vector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.vector-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.point-of-sail-badge {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--brand-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.compass-canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 220px;
+}
+
+.compass-canvas {
+  width: 100%;
+  max-width: 500px;
+  height: 220px;
+}
+
+/* 3-Boat Real-Time Telemetry Cards */
 .vpp-results-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
-@media (max-width: 750px) {
+@media (max-width: 850px) {
   .vpp-results-grid {
     grid-template-columns: 1fr;
   }
 }
 
-.vpp-boat-result {
-  background: var(--bg-input);
+.vpp-boat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  text-align: center;
-  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   position: relative;
+  overflow: hidden;
 }
 
-.vpp-boat-result.boat1 { border-top: 3px solid var(--boat1-color); }
-.vpp-boat-result.boat2 { border-top: 3px solid var(--boat2-color); }
-.vpp-boat-result.boat3 { border-top: 3px solid var(--boat3-color); }
+.vpp-boat-card.boat1 { border-top: 4px solid var(--boat1-color); }
+.vpp-boat-card.boat2 { border-top: 4px solid var(--boat2-color); }
+.vpp-boat-card.boat3 { border-top: 4px solid var(--boat3-color); }
 
-.vpp-boat-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
+.vpp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
-.vpp-speed-meter {
-  font-size: 2.2rem;
+.vpp-boat-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.vpp-boat-brand {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.vpp-speed-display {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.2rem 0;
+}
+
+.vpp-main-speed {
+  font-size: 2.5rem;
   font-weight: 900;
   font-family: var(--font-mono);
-  color: #fff;
-  margin-bottom: 0.25rem;
 }
 
-.vpp-speed-meter span {
+.vpp-speed-unit {
   font-size: 1rem;
   color: var(--text-secondary);
+  font-weight: 700;
 }
 
-.vpp-perf-ratio {
-  font-size: 0.8rem;
+.vpp-speed-sub {
+  font-size: 0.82rem;
   color: var(--text-secondary);
+  font-weight: 600;
 }
+
+.vmg-metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: var(--bg-input);
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+}
+
+.vmg-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.vmg-label {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.vmg-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #fff;
+}
+
+.vpp-detail-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.vpp-spec-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.vpp-spec-row .name { color: var(--text-secondary); }
+.vpp-spec-row .val { font-family: var(--font-mono); font-weight: 600; color: #fff; }
+
+.vpp-safety-alert {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.vpp-safety-alert.Optimal { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.vpp-safety-alert.Under-canvassed { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+.vpp-safety-alert.Overpowered { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+.vpp-safety-alert.Overpowered---Warning, .vpp-safety-alert.Hazardous-Rig-Load { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.vpp-safety-alert.Bare-Poles { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); }
 
 /* Math & Formulas Guide */
 .math-guide-grid {

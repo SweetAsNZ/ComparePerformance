@@ -11,8 +11,14 @@
     unit: 'metric', // 'metric' | 'imperial'
     activeTab: 'indicators',
     selectedPolarTws: 16, // 8, 12, 16, 20, 25, or 'all'
-    simTws: 16,
-    simTwa: 90
+    sim: {
+      tws: 16,
+      twa: 90,
+      mainReef: 'full',
+      headsailType: 'genoa',
+      headsailReef: 1.0,
+      payloadTons: 1.5
+    }
   };
 
   // DOM Elements
@@ -32,12 +38,25 @@
     specsBoatHeader3: document.getElementById('specsBoatHeader3'),
     polarCanvas: document.getElementById('polarCanvas'),
     radarCanvas: document.getElementById('radarCanvas'),
+    compassCanvas: document.getElementById('compassCanvas'),
+    pointOfSailBadge: document.getElementById('pointOfSailBadge'),
     twsPillsContainer: document.getElementById('twsPillsContainer'),
+    
+    // Simulator Controls
     simTwsInput: document.getElementById('simTwsInput'),
     simTwaInput: document.getElementById('simTwaInput'),
     simTwsVal: document.getElementById('simTwsVal'),
     simTwaVal: document.getElementById('simTwaVal'),
+    simMainReefSelect: document.getElementById('simMainReefSelect'),
+    simHeadsailTypeSelect: document.getElementById('simHeadsailTypeSelect'),
+    simHeadsailReefSelect: document.getElementById('simHeadsailReefSelect'),
+    simPayloadSelect: document.getElementById('simPayloadSelect'),
+    simMainReefDesc: document.getElementById('simMainReefDesc'),
+    simHeadsailDesc: document.getElementById('simHeadsailDesc'),
+    simHeadsailReefDesc: document.getElementById('simHeadsailReefDesc'),
+    simPayloadDesc: document.getElementById('simPayloadDesc'),
     simResultsContainer: document.getElementById('simResultsContainer'),
+    
     toast: document.getElementById('toastNotice'),
     tabNavBtns: document.querySelectorAll('.tab-nav-btn'),
     tabPanes: document.querySelectorAll('.tab-pane')
@@ -85,7 +104,7 @@
   }
 
   /**
-   * Parse URL Query parameters (e.g. ?key1=Fountaine+Pajot+47+Tanna&key2=Fountaine+Pajot+51+Aura&key3=Leopard+52)
+   * Parse URL Query parameters
    */
   function parseUrlParams() {
     const params = new URLSearchParams(window.location.search);
@@ -191,10 +210,11 @@
         if (targetPane) targetPane.classList.add('active');
         state.activeTab = targetId;
 
-        // Trigger canvas resize/render when switching tabs
         if (targetId === 'tabPolars') {
           renderPolarChart();
           renderRadarChart();
+        } else if (targetId === 'tabSimulator') {
+          renderCompassVector();
         }
       });
     });
@@ -210,22 +230,136 @@
       }
     });
 
-    // VPP Simulator Sliders
+    // VPP Simulator Sliders & Controls
     elements.simTwsInput.addEventListener('input', (e) => {
-      state.simTws = parseInt(e.target.value, 10);
-      elements.simTwsVal.textContent = state.simTws + ' kn';
+      state.sim.tws = parseInt(e.target.value, 10);
+      elements.simTwsVal.textContent = state.sim.tws + ' kn';
+      updatePresetTwsButtons(state.sim.tws);
       updateVppSimulator();
     });
 
+    // TWS Presets
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = parseInt(btn.getAttribute('data-tws'), 10);
+        state.sim.tws = val;
+        elements.simTwsInput.value = val;
+        elements.simTwsVal.textContent = val + ' kn';
+        updatePresetTwsButtons(val);
+        updateVppSimulator();
+      });
+    });
+
     elements.simTwaInput.addEventListener('input', (e) => {
-      state.simTwa = parseInt(e.target.value, 10);
-      elements.simTwaVal.textContent = state.simTwa + '°';
+      state.sim.twa = parseInt(e.target.value, 10);
+      updateTwaDisplay();
+      updatePresetTwaButtons(state.sim.twa);
+      updateVppSimulator();
+    });
+
+    // TWA Presets
+    document.querySelectorAll('.preset-twa-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = parseInt(btn.getAttribute('data-twa'), 10);
+        state.sim.twa = val;
+        elements.simTwaInput.value = val;
+        updateTwaDisplay();
+        updatePresetTwaButtons(val);
+        updateVppSimulator();
+      });
+    });
+
+    // Sail Config Selects
+    elements.simMainReefSelect.addEventListener('change', (e) => {
+      state.sim.mainReef = e.target.value;
+      const descMap = {
+        'full': 'Full Mainsail (100% Area)',
+        'reef1': 'Reef 1 (82% Area)',
+        'reef2': 'Reef 2 (64% Area)',
+        'reef3': 'Reef 3 (45% Area)',
+        'none': 'Furled / Dropped (0% Area)'
+      };
+      if (elements.simMainReefDesc) elements.simMainReefDesc.textContent = descMap[state.sim.mainReef] || '';
+      updateVppSimulator();
+    });
+
+    elements.simHeadsailTypeSelect.addEventListener('change', (e) => {
+      state.sim.headsailType = e.target.value;
+      const descMap = {
+        'genoa': 'Standard Overlapping Genoa (110%)',
+        'solent': 'Self-Tacking Solent / Jib (82%)',
+        'gennaker': 'Code 0 / Gennaker / Screecher (185%)',
+        'spinnaker': 'Asymmetrical Spinnaker (230%)',
+        'storm': 'Heavy Weather Storm Jib (35%)',
+        'none': 'Furled / Dropped (0%)'
+      };
+      if (elements.simHeadsailDesc) elements.simHeadsailDesc.textContent = descMap[state.sim.headsailType] || '';
+      updateVppSimulator();
+    });
+
+    elements.simHeadsailReefSelect.addEventListener('change', (e) => {
+      state.sim.headsailReef = parseFloat(e.target.value);
+      const descMap = {
+        '1.0': '100% - Fully Deployed',
+        '0.75': '75% - 1st Furling Mark',
+        '0.50': '50% - Half Furled',
+        '0.25': '25% - Heavy Furled',
+        '0.0': '0% - Fully Furled'
+      };
+      if (elements.simHeadsailReefDesc) elements.simHeadsailReefDesc.textContent = descMap[e.target.value] || '';
+      updateVppSimulator();
+    });
+
+    elements.simPayloadSelect.addEventListener('change', (e) => {
+      state.sim.payloadTons = parseFloat(e.target.value);
+      const descMap = {
+        '0': '+0 kg Lightship',
+        '1.5': '+1,500 kg Normal Cruising',
+        '3.0': '+3,000 kg Liveaboard Passage',
+        '4.5': '+4,500 kg Expedition'
+      };
+      if (elements.simPayloadDesc) elements.simPayloadDesc.textContent = descMap[e.target.value] || '';
       updateVppSimulator();
     });
 
     window.addEventListener('resize', () => {
       renderPolarChart();
       renderRadarChart();
+      renderCompassVector();
+    });
+  }
+
+  function updateTwaDisplay() {
+    const twa = state.sim.twa;
+    let pos = "Beam Reach";
+    if (twa < 40) pos = "Close Hauled";
+    else if (twa < 60) pos = "Close Reach";
+    else if (twa <= 110) pos = "Beam Reach";
+    else if (twa <= 145) pos = "Broad Reach";
+    else if (twa <= 165) pos = "Deep Broad Reach";
+    else pos = "Dead Run";
+
+    elements.simTwaVal.textContent = `${twa}° ${pos}`;
+    if (elements.pointOfSailBadge) elements.pointOfSailBadge.textContent = pos;
+  }
+
+  function updatePresetTwsButtons(val) {
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      if (parseInt(btn.getAttribute('data-tws'), 10) === val) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  function updatePresetTwaButtons(val) {
+    document.querySelectorAll('.preset-twa-btn').forEach(btn => {
+      if (parseInt(btn.getAttribute('data-twa'), 10) === val) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
     });
   }
 
@@ -277,11 +411,11 @@
       card.className = `boat-hero-card boat${bIdx}`;
       card.innerHTML = `
         <div class="boat-hero-img-wrap">
-          <img src="${boat.image}" alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.src='https://images.unsplash.com/photo-1540946485063-a40da27545f8?auto=format&fit=crop&w=1000&q=80'" />
+          <img src="${boat.image}" alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1540946485063-a40da27545f8?auto=format&fit=crop&w=1000&q=80'" />
           <span class="boat-category-badge">${boat.category}</span>
         </div>
         <div class="boat-hero-body">
-          <div class="boat-builder-name">${boat.manufacturer}</div>
+          <div class="boat-builder-name">${boat.manufacturer} • ${boat.year}</div>
           <h2 class="boat-model-name">${boat.name}</h2>
           
           <div class="hero-stats-banner">
@@ -290,7 +424,7 @@
               <div class="hero-stat-val" style="color: var(--boat${bIdx}-color)">${metrics.indicators.sailPerf.value}<span>%</span></div>
             </div>
             <div class="hero-stat-item">
-              <div class="hero-stat-label">Boat Speed (15kn)</div>
+              <div class="hero-stat-label">Reaching Speed (15kn)</div>
               <div class="hero-stat-val">${metrics.indicators.boatSpeed.value}<span> kn</span></div>
             </div>
           </div>
@@ -320,7 +454,7 @@
   }
 
   /**
-   * Render Performance Indicator Rows (matching CatamaranShow exact math and visual layout)
+   * Render Performance Indicator Rows
    */
   function renderPerformanceIndicators() {
     elements.indicatorsContainer.innerHTML = '';
@@ -395,13 +529,12 @@
   }
 
   /**
-   * Render Comprehensive Technical Specifications Table
+   * Render Technical Specifications Table
    */
   function renderSpecificationsTable() {
     const isMetric = state.unit === 'metric';
     const allMetrics = state.boats.map(b => b ? NAVAL_MATH.calculateBoatMetrics(b) : null);
 
-    // Update Headers
     elements.specsBoatHeader1.textContent = state.boats[0] ? `${state.boats[0].manufacturer} ${state.boats[0].name}` : 'Boat 1';
     elements.specsBoatHeader2.textContent = state.boats[1] ? `${state.boats[1].manufacturer} ${state.boats[1].name}` : 'Boat 2';
     elements.specsBoatHeader3.textContent = state.boats[2] ? `${state.boats[2].manufacturer} ${state.boats[2].name}` : 'Boat 3';
@@ -505,7 +638,6 @@
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
-    // Set proper resolution
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
@@ -517,11 +649,10 @@
     const centerX = width / 2;
     const centerY = height * 0.90;
     const maxRadius = Math.min(width * 0.44, height * 0.82);
-    const maxSpeedScale = 25; // 25 knots scale
+    const maxSpeedScale = 25;
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Concentric Speed Rings (5, 10, 15, 20, 25 kn)
     const speedRings = [5, 10, 15, 20, 25];
     speedRings.forEach(spd => {
       const r = (spd / maxSpeedScale) * maxRadius;
@@ -531,7 +662,6 @@
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Speed Ring Label
       ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
       ctx.font = '10px JetBrains Mono, monospace';
       ctx.textAlign = 'right';
@@ -540,11 +670,8 @@
       ctx.fillText(`${spd} kn`, centerX + r + 4, centerY - 2);
     });
 
-    // 2. Draw Angle Radial Lines (30°, 45°, 60°, 90°, 110°, 135°, 150°, 180°)
     const angles = [30, 45, 60, 90, 110, 135, 150, 180];
     angles.forEach(deg => {
-      // Symmetrical display (both starboard and port or half-view)
-      // Standard yacht polar is shown right side (starboard) 0° to 180°
       const rad = (deg - 90) * (Math.PI / 180);
       const x = centerX + maxRadius * Math.cos(rad);
       const y = centerY + maxRadius * Math.sin(rad);
@@ -556,7 +683,6 @@
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Angle Label
       const labelX = centerX + (maxRadius + 14) * Math.cos(rad);
       const labelY = centerY + (maxRadius + 14) * Math.sin(rad);
       ctx.fillStyle = '#94a3b8';
@@ -566,13 +692,11 @@
       ctx.fillText(`${deg}°`, labelX, labelY);
     });
 
-    // Draw Wind Origin Arrow at 0° (top)
     ctx.fillStyle = '#38bdf8';
     ctx.font = '11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('TRUE WIND (0°)', centerX, centerY - maxRadius - 18);
 
-    // 3. Draw Boat Polar Curves
     const twsList = state.selectedPolarTws === 'all' ? [8, 12, 16, 20, 25] : [state.selectedPolarTws];
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
 
@@ -597,7 +721,6 @@
         if (points.length > 0) {
           ctx.moveTo(points[0].x, points[0].y);
           for (let i = 1; i < points.length; i++) {
-            // Smooth curve
             const xc = (points[i - 1].x + points[i].x) / 2;
             const yc = (points[i - 1].y + points[i].y) / 2;
             ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
@@ -608,7 +731,6 @@
           ctx.lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 1.5 : 2.5;
           ctx.stroke();
 
-          // Fill area subtly
           if (state.selectedPolarTws !== 'all') {
             ctx.lineTo(centerX, centerY);
             ctx.closePath();
@@ -653,7 +775,6 @@
 
     const totalAxes = axes.length;
 
-    // Draw Polygonal Grid Lines (2, 4, 6, 8, 10)
     for (let level = 2; level <= 10; level += 2) {
       const r = (level / 10) * radius;
       ctx.beginPath();
@@ -670,7 +791,6 @@
       ctx.stroke();
     }
 
-    // Draw Axis Spokes & Labels
     for (let i = 0; i < totalAxes; i++) {
       const angle = (i * 2 * Math.PI / totalAxes) - (Math.PI / 2);
       const x = centerX + radius * Math.cos(angle);
@@ -682,7 +802,6 @@
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.stroke();
 
-      // Axis Label
       const labelRadius = radius + 20;
       const lx = centerX + labelRadius * Math.cos(angle);
       const ly = centerY + labelRadius * Math.sin(angle);
@@ -693,7 +812,6 @@
       ctx.fillText(axes[i].name, lx, ly);
     }
 
-    // Plot Boat Polygons
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
     const fills = ['rgba(6, 182, 212, 0.2)', 'rgba(245, 158, 11, 0.2)', 'rgba(236, 72, 153, 0.2)'];
 
@@ -721,32 +839,185 @@
   }
 
   /**
+   * Render Sailing Vector Compass Visualizer
+   */
+  function renderCompassVector() {
+    const canvas = elements.compassCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) * 0.40;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Compass Circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Cardinal Points
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HEADING 000°', centerX, centerY - radius - 12);
+    ctx.fillText('180°', centerX, centerY + radius + 12);
+    ctx.fillText('090° STBD', centerX + radius + 28, centerY);
+    ctx.fillText('270° PORT', centerX - radius - 28, centerY);
+
+    // Draw Catamaran Silhouette at Center (Bow pointing UP / 0°)
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    
+    // Twin Hulls
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    // Port hull
+    ctx.beginPath();
+    ctx.roundRect(-24, -22, 6, 44, 3);
+    ctx.fill();
+    // Starboard hull
+    ctx.beginPath();
+    ctx.roundRect(18, -22, 6, 44, 3);
+    ctx.fill();
+    // Bridgedeck
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(-18, -8, 36, 24);
+    // Mast / Boom
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -2, 3, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Draw True Wind Arrow (originating at TWA on starboard side)
+    const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
+    const twX = centerX + radius * Math.cos(twaRad);
+    const twY = centerY + radius * Math.sin(twaRad);
+
+    // True Wind Inbound Arrow
+    drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5, `TWS ${state.sim.tws} kn (${state.sim.twa}°)`);
+
+    // Draw Apparent Wind Vector for Boat 1 as representative
+    if (state.boats[0]) {
+      const vpp1 = NAVAL_MATH.simulateSailPerformance(state.boats[0], state.sim);
+      const awaRad = (vpp1.awa - 90) * (Math.PI / 180.0);
+      const awX = centerX + (radius * 0.85) * Math.cos(awaRad);
+      const awY = centerY + (radius * 0.85) * Math.sin(awaRad);
+      drawArrow(ctx, awX, awY, centerX, centerY, '#06b6d4', 2.0, `AWS ${vpp1.aws} kn (${vpp1.awa}°)`);
+    }
+  }
+
+  function drawArrow(ctx, fromX, fromY, toX, toY, color, width, label) {
+    const headLen = 10;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+
+    // Arrowhead
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Label
+    if (label) {
+      ctx.fillStyle = color;
+      ctx.font = '10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, fromX, fromY - 6);
+    }
+  }
+
+  /**
    * Update VPP Real-time Velocity Prediction Simulator
    */
   function updateVppSimulator() {
+    if (!elements.simResultsContainer) return;
     elements.simResultsContainer.innerHTML = '';
-    const speeds = state.boats.map(b => b ? NAVAL_MATH.predictBoatSpeed(b, state.simTws, state.simTwa) : 0);
+    
+    renderCompassVector();
+
+    const isMetric = state.unit === 'metric';
+    const allVpp = state.boats.map(b => b ? NAVAL_MATH.simulateSailPerformance(b, state.sim) : null);
+    const speeds = allVpp.map(v => v ? v.boatSpeed : 0);
     const maxSpeed = Math.max(...speeds);
 
     state.boats.forEach((boat, idx) => {
       if (!boat) return;
       const bIdx = idx + 1;
-      const spd = speeds[idx];
-      const perfRatio = Math.round((spd / state.simTws) * 100);
-      const isFastest = spd === maxSpeed && maxSpeed > 0;
+      const v = allVpp[idx];
+      const isFastest = v.boatSpeed === maxSpeed && maxSpeed > 0;
+      const areaUnit = isMetric ? "m²" : "sq ft";
+      const totalAreaVal = isMetric ? v.activeTotalArea : Math.round(v.activeTotalArea * 10.7639);
+      const safeClass = v.safetyStatus.replace(/\s+/g, '-');
 
       const card = document.createElement('div');
-      card.className = `vpp-boat-result boat${bIdx}`;
+      card.className = `vpp-boat-card boat${bIdx}`;
       card.innerHTML = `
-        <div class="vpp-boat-title" style="color: var(--boat${bIdx}-color)">
-          ${boat.manufacturer} ${boat.name}
-          ${isFastest ? '<span style="color: #10b981; font-size: 0.75rem; margin-left: 4px;">★ FASTEST</span>' : ''}
+        <div class="vpp-card-header">
+          <div>
+            <div class="vpp-boat-brand">${boat.manufacturer}</div>
+            <div class="vpp-boat-name">${boat.name}</div>
+          </div>
+          ${isFastest ? '<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(16, 185, 129, 0.4);">★ FASTEST</span>' : ''}
         </div>
-        <div class="vpp-speed-meter" style="color: var(--boat${bIdx}-color)">
-          ${spd.toFixed(1)} <span>kn</span>
+
+        <div class="vpp-speed-display">
+          <div class="vpp-main-speed" style="color: var(--boat${bIdx}-color)">${v.boatSpeed.toFixed(1)}</div>
+          <div class="vpp-speed-unit">knots</div>
         </div>
-        <div class="vpp-perf-ratio">
-          ${perfRatio}% of Windspeed
+        <div class="vpp-speed-sub">${v.sailPerformancePercent}% of True Windspeed</div>
+
+        <div class="vmg-metrics-row">
+          <div class="vmg-item">
+            <span class="vmg-label">Apparent Wind</span>
+            <span class="vmg-val">${v.aws} kn @ ${v.awa}°</span>
+          </div>
+          <div class="vmg-item">
+            <span class="vmg-label">${state.sim.twa < 90 ? 'Upwind VMG' : 'Downwind VMG'}</span>
+            <span class="vmg-val">${state.sim.twa < 90 ? v.upwindVmg : v.downwindVmg} kn</span>
+          </div>
+        </div>
+
+        <div class="vpp-detail-specs">
+          <div class="vpp-spec-row">
+            <span class="name">Active Sail Area</span>
+            <span class="val">${totalAreaVal} ${areaUnit} (${v.sailPowerRatioPercent}%)</span>
+          </div>
+          <div class="vpp-spec-row">
+            <span class="name">Polar Reference Target</span>
+            <span class="val">${NAVAL_MATH.predictBasePolarSpeed(boat, state.sim.tws, state.sim.twa).toFixed(1)} kn</span>
+          </div>
+          <div class="vpp-spec-row">
+            <span class="name">Cruising Load Factor</span>
+            <span class="val">+${state.sim.payloadTons} t (${(Math.pow(boat.specs.displacement_light_t / (boat.specs.displacement_light_t + state.sim.payloadTons), 0.35) * 100).toFixed(0)}% speed)</span>
+          </div>
+        </div>
+
+        <div class="vpp-safety-alert ${safeClass}">
+          <strong>${v.safetyStatus}:</strong> ${v.safetyNotice}
         </div>
       `;
       elements.simResultsContainer.appendChild(card);
@@ -760,3 +1031,4 @@
     init();
   }
 })();
+

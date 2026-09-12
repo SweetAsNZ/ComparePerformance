@@ -217,33 +217,149 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
-              Velocity Prediction Program (VPP) Simulator
+              Velocity Prediction Program (VPP) & Sail Reefing Simulator
             </h2>
-            <p class="section-subtitle">Adjust true wind speed and true wind angle to extrapolate real-time boat speeds for all 3 catamarans.</p>
+            <p class="section-subtitle">Dynamically adjust True Wind Speed, True Wind Angle, Mainsail Reefs, Headsail Types, and Furling to predict boat speeds based on manufacturer polar data.</p>
           </div>
         </div>
 
-        <div class="vpp-simulator-box">
-          <div class="simulator-controls">
-            <div class="sim-slider-group">
-              <label for="simTwsInput" class="sim-slider-label">
-                <span>True Wind Speed (TWS)</span>
-                <span id="simTwsVal" class="val">16 kn</span>
-              </label>
-              <input type="range" id="simTwsInput" class="range-input" min="5" max="30" value="16" step="1" title="Adjust True Wind Speed in knots" aria-label="True Wind Speed in knots">
+        <!-- Simulator Grid Layout: Controls on Left, Visualizer & Results on Right -->
+        <div class="vpp-layout-grid">
+          <div class="vpp-controls-panel">
+            
+            <!-- Wind Conditions Group -->
+            <div class="sim-section-box">
+              <div class="sim-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                </svg>
+                <span>Wind Conditions</span>
+              </div>
+
+              <!-- TWS Slider -->
+              <div class="sim-slider-group">
+                <label for="simTwsInput" class="sim-slider-label">
+                  <span>True Wind Speed (TWS)</span>
+                  <span id="simTwsVal" class="val">16 kn</span>
+                </label>
+                <input type="range" id="simTwsInput" class="range-input" min="2" max="45" value="16" step="1" title="Adjust True Wind Speed in knots" aria-label="True Wind Speed in knots">
+                <div class="preset-buttons-row">
+                  <button type="button" class="preset-btn" data-tws="8">8 kn Light</button>
+                  <button type="button" class="preset-btn active" data-tws="16">16 kn Moderate</button>
+                  <button type="button" class="preset-btn" data-tws="22">22 kn Fresh</button>
+                  <button type="button" class="preset-btn" data-tws="28">28 kn Strong</button>
+                  <button type="button" class="preset-btn" data-tws="35">35 kn Gale</button>
+                </div>
+              </div>
+
+              <!-- TWA Slider -->
+              <div class="sim-slider-group">
+                <label for="simTwaInput" class="sim-slider-label">
+                  <span>True Wind Angle (TWA)</span>
+                  <span id="simTwaVal" class="val">90° Beam Reach</span>
+                </label>
+                <input type="range" id="simTwaInput" class="range-input" min="30" max="180" value="90" step="1" title="Adjust True Wind Angle in degrees" aria-label="True Wind Angle in degrees">
+                <div class="preset-buttons-row">
+                  <button type="button" class="preset-twa-btn" data-twa="38">38° Close Hauled</button>
+                  <button type="button" class="preset-twa-btn" data-twa="60">60° Close Reach</button>
+                  <button type="button" class="preset-twa-btn active" data-twa="90">90° Beam Reach</button>
+                  <button type="button" class="preset-twa-btn" data-twa="135">135° Broad Reach</button>
+                  <button type="button" class="preset-twa-btn" data-twa="175">175° Run</button>
+                </div>
+              </div>
             </div>
 
-            <div class="sim-slider-group">
-              <label for="simTwaInput" class="sim-slider-label">
-                <span>True Wind Angle (TWA)</span>
-                <span id="simTwaVal" class="val">90°</span>
-              </label>
-              <input type="range" id="simTwaInput" class="range-input" min="30" max="180" value="90" step="5" title="Adjust True Wind Angle in degrees" aria-label="True Wind Angle in degrees">
+            <!-- Sails & Reefing Controls Group -->
+            <div class="sim-section-box">
+              <div class="sim-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 18l3-12 15 12H3zm13.5-3.5L12 9.5l-4.5 5h9z"/>
+                </svg>
+                <span>Sail Trim & Reefing Configuration</span>
+              </div>
+
+              <!-- Mainsail Reefing -->
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simMainReefSelect">
+                  <span>Mainsail Reefing</span>
+                  <span id="simMainReefDesc" class="config-desc">Full Main (100% Area)</span>
+                </label>
+                <select id="simMainReefSelect" class="sim-select-dropdown" aria-label="Mainsail Reefing">
+                  <option value="full" selected>Full Mainsail (100% Area)</option>
+                  <option value="reef1">Reef 1 (82% Area - 18-22 kn TWS)</option>
+                  <option value="reef2">Reef 2 (64% Area - 23-28 kn TWS)</option>
+                  <option value="reef3">Reef 3 (45% Area - 29-38 kn TWS)</option>
+                  <option value="none">Dropped / Furled (0% Area - Storm/Motor)</option>
+                </select>
+              </div>
+
+              <!-- Headsail Selection -->
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simHeadsailTypeSelect">
+                  <span>Headsail Type</span>
+                  <span id="simHeadsailDesc" class="config-desc">Overlapping Genoa (110%)</span>
+                </label>
+                <select id="simHeadsailTypeSelect" class="sim-select-dropdown" aria-label="Headsail Type">
+                  <option value="genoa" selected>Standard Genoa (100% / 110% Overlap)</option>
+                  <option value="solent">Self-Tacking Jib / Solent (82% Area)</option>
+                  <option value="gennaker">Code 0 / Gennaker / Screecher (185% Area)</option>
+                  <option value="spinnaker">Asymmetrical Spinnaker (230% Area)</option>
+                  <option value="storm">Heavy Weather Storm Jib (35% Area)</option>
+                  <option value="none">Furled (No Headsail)</option>
+                </select>
+              </div>
+
+              <!-- Headsail Reefing / Furling -->
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simHeadsailReefSelect">
+                  <span>Headsail Furling Level</span>
+                  <span id="simHeadsailReefDesc" class="config-desc">100% Unfurled</span>
+                </label>
+                <select id="simHeadsailReefSelect" class="sim-select-dropdown" aria-label="Headsail Furling Level">
+                  <option value="1.0" selected>100% - Fully Deployed</option>
+                  <option value="0.75">75% - 1st Furling Mark</option>
+                  <option value="0.50">50% - Half Furled</option>
+                  <option value="0.25">25% - Heavy Weather Furled</option>
+                  <option value="0.0">0% - Fully Furled</option>
+                </select>
+              </div>
+
+              <!-- Cruising Payload Load -->
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simPayloadSelect">
+                  <span>Cruising Loading / Payload</span>
+                  <span id="simPayloadDesc" class="config-desc">+1,500 kg Cruising Trim</span>
+                </label>
+                <select id="simPayloadSelect" class="sim-select-dropdown" aria-label="Cruising Loading">
+                  <option value="0">Lightship / Delivery Trim (+0 kg)</option>
+                  <option value="1.5" selected>Normal Cruising Trim (+1,500 kg)</option>
+                  <option value="3.0">Full Liveaboard / Tankage (+3,000 kg)</option>
+                  <option value="4.5">Heavy Bluewater Expedition (+4,500 kg)</option>
+                </select>
+              </div>
             </div>
+
           </div>
 
-          <div class="vpp-results-grid" id="simResultsContainer"></div>
+          <!-- Visualizer & Real-Time Boat Telemetry -->
+          <div class="vpp-telemetry-panel">
+            
+            <!-- Sailing Vector & Compass Box -->
+            <div class="sim-vector-box">
+              <div class="vector-header">
+                <span class="vector-title">Aerodynamic & Apparent Wind Vector Plotter</span>
+                <span class="point-of-sail-badge" id="pointOfSailBadge">Beam Reach</span>
+              </div>
+              <div class="compass-canvas-container">
+                <canvas id="compassCanvas" class="compass-canvas"></canvas>
+              </div>
+            </div>
+
+            <!-- 3 Boat Real-Time Comparison Cards -->
+            <div class="vpp-results-grid" id="simResultsContainer"></div>
+          </div>
         </div>
+
       </div>
     </div>
 
