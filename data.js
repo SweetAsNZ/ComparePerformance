@@ -30,7 +30,7 @@ const CATAMARAN_DATABASE = [
     ceCategory: "A (10/12/14/16 pax), B, C, D",
     priceEstimate: "$560,000",
     avgMarketPrice: "$560,000 (YachtWorld avg: $490k - $630k)",
-    image: "https://images.unsplash.com/photo-1540946485063-a40da27545f8?auto=format&fit=crop&w=1200&q=80",
+    image: "https://images.pexels.com/photos/163236/luxury-yacht-boat-speed-water-163236.jpeg?auto=compress&cs=tinysrgb&w=1600",
     specs: {
       loa_m: 11.93,
       lwl_m: 11.93,
@@ -80,7 +80,7 @@ const CATAMARAN_DATABASE = [
     ceCategory: "A (10 pax)",
     priceEstimate: "$440,000",
     avgMarketPrice: "$440,000 (YachtWorld avg: $380k - $510k)",
-    image: "https://images.unsplash.com/photo-1500917293891-ef795e70e1f6?auto=format&fit=crop&w=1200&q=80",
+    image: "https://images.pexels.com/photos/128746/pexels-photo-128746.jpeg?auto=compress&cs=tinysrgb&w=1600",
     specs: {
       loa_m: 11.73,
       lwl_m: 11.55,
@@ -130,7 +130,7 @@ const CATAMARAN_DATABASE = [
     ceCategory: "A (10/12/14/16 pax), B, C, D",
     priceEstimate: "$640,000",
     avgMarketPrice: "$640,000 (YachtWorld avg: $570k - $730k)",
-    image: "https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?auto=format&fit=crop&w=1200&q=80",
+    image: "https://images.pexels.com/photos/1001682/pexels-photo-1001682.jpeg?auto=compress&cs=tinysrgb&w=1600",
     specs: {
       loa_m: 12.58,
       lwl_m: 12.58,
@@ -180,7 +180,7 @@ const CATAMARAN_DATABASE = [
     ceCategory: "A (10 pax)",
     priceEstimate: "$520,000",
     avgMarketPrice: "$520,000 (YachtWorld avg: $440k - $590k)",
-    image: "https://images.unsplash.com/photo-1516117172878-fd2c41f4a759?auto=format&fit=crop&w=1200&q=80",
+    image: "https://images.pexels.com/photos/1545743/pexels-photo-1545743.jpeg?auto=compress&cs=tinysrgb&w=1600",
     specs: {
       loa_m: 13.30,
       lwl_m: 13.00,
@@ -230,7 +230,7 @@ const CATAMARAN_DATABASE = [
     ceCategory: "A (10/12/14/16 pax), B, C, D",
     priceEstimate: "$740,000",
     avgMarketPrice: "$740,000 (YachtWorld avg: $650k - $830k)",
-    image: "https://images.unsplash.com/photo-1544551763-77ef2d0cfc6c?auto=format&fit=crop&w=1200&q=80",
+    image: "https://images.pexels.com/photos/208260/pexels-photo-208260.jpeg?auto=compress&cs=tinysrgb&w=1600",
     specs: {
       loa_m: 13.50,
       lwl_m: 13.50,
