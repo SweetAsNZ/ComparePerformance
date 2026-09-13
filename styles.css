@@ -722,6 +722,32 @@ body {
   flex-wrap: wrap;
 }
 
+.zoom-controls-group {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--bg-input);
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.zoom-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: var(--bg-card);
+  color: #fff;
+}
+
 .tws-pills {
   display: flex;
   gap: 0.35rem;

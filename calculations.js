@@ -54,19 +54,23 @@ const NAVAL_MATH = {
     const hullSpeed = 1.34 * Math.sqrt(lwl_ft);
 
     // 6. Extrapolated Reaching Boat Speed at 15-18kn true wind
-    // Multihull speed scaling based on waterline length, Bruce number, and fineness
     const estimatedBoatSpeed = Math.round((hullSpeed * Math.pow(bruceNumber, 0.95) * 0.96) * 10) / 10;
 
     // 7. Sail Performance (% of 15-knot true wind)
     const sailPerformancePercent = Math.round((estimatedBoatSpeed / 15.0) * 100);
 
-    // 8. Other Multihull naval architecture indicators
-    const lwlBeamRatio = lwl_ft / (boa_ft * 0.22); // Individual hull length-to-beam estimate
-    const beamLengthRatio = s.boa_m / s.loa_m; // Overall beam to LOA
-    const bridgedeckRatio = s.bridgedeck_clearance_m / s.lwl_m; // Bridgedeck to LWL (> 0.055 is good)
-    const ppi_lbs = (s.lwl_m * s.boa_m * 0.22 * 2 * 10.7639 * 64) / 12; // Pounds per inch immersion
+    // 8. Overall Maximum Speed & Optimal Reaching Angle from Polar Matrix
+    const maxPolar = this.calculateMaxPolarSpeed(boat);
 
-    // Gauge positioning (percentage for visual bar 0-100%):
+    // 9. Optimum Upwind VMG and Target Tack Angle
+    const upwindTarget = this.calculateOptimumUpwind(boat, 15);
+
+    // 10. Other Multihull naval architecture indicators
+    const lwlBeamRatio = lwl_ft / (boa_ft * 0.22);
+    const beamLengthRatio = s.boa_m / s.loa_m;
+    const bridgedeckRatio = s.bridgedeck_clearance_m / s.lwl_m;
+
+    // Gauge positioning:
     const indicators = {
       sailPerf: {
         value: sailPerformancePercent,
@@ -94,6 +98,20 @@ const NAVAL_MATH = {
           { name: "Cruiser", min: 9.8, max: 11.6 },
           { name: "Performance", min: 11.6, max: 14.2 },
           { name: "Racer", min: 14.2, max: 17.5 }
+        ]
+      },
+      maxSpeed: {
+        value: maxPolar.maxSpeed,
+        unit: "kn",
+        label: "Max Polar Speed",
+        sublabel: `@ ${maxPolar.twa}° TWA in ${maxPolar.tws}kn TWS`,
+        category: this.classifyBoatSpeed(maxPolar.maxSpeed),
+        barPercent: this.scaleToBar(maxPolar.maxSpeed, 9.0, 26.0),
+        zones: [
+          { name: "Slow", min: 9.0, max: 12.0 },
+          { name: "Cruiser", min: 12.0, max: 15.0 },
+          { name: "Performance", min: 15.0, max: 19.5 },
+          { name: "Racer", min: 19.5, max: 26.0 }
         ]
       },
       bruceNumber: {
@@ -148,7 +166,6 @@ const NAVAL_MATH = {
         label: "Displacement to Length",
         sublabel: "(lower is faster)",
         category: this.classifyDispLength(dispLengthRatio),
-        // Inverted bar because lower is faster
         barPercent: 100 - this.scaleToBar(dispLengthRatio, 40, 220),
         zones: [
           { name: "Slow", min: 175, max: 220 },
@@ -178,6 +195,8 @@ const NAVAL_MATH = {
         bridgedeck_clearance: s.bridgedeck_clearance_m ? (s.bridgedeck_clearance_m * 100).toFixed(0) + " cm" : "N/A",
         fuel: s.fuel_capacity_l + " L",
         water: s.water_capacity_l + " L",
+        coreCategory: boat.coreCategory || "Balsa / Foam (Hull # dependent)",
+        coreDetails: boat.coreDetails || boat.hullMaterial
       },
       imperial: {
         loa: loa_ft.toFixed(1) + " ft",
@@ -197,6 +216,8 @@ const NAVAL_MATH = {
         bridgedeck_clearance: bridgedeck_ft ? bridgedeck_ft.toFixed(1) + " ft" : "N/A",
         fuel: Math.round(fuel_gal) + " US gal",
         water: Math.round(water_gal) + " US gal",
+        coreCategory: boat.coreCategory || "Balsa / Foam (Hull # dependent)",
+        coreDetails: boat.coreDetails || boat.hullMaterial
       },
       raw: {
         loa_m: s.loa_m,
@@ -208,6 +229,105 @@ const NAVAL_MATH = {
         draft_min_m: s.draft_min_m,
         draft_max_m: s.draft_max_m,
         disp_light_t: s.displacement_light_t,
+        disp_light_lbs: disp_light_lbs,
+        sa_upwind_m2: s.sail_area_upwind_m2,
+        sa_upwind_ft2: sa_upwind_ft2,
+        bruceNumber: bruceNumber,
+        kelsallIndex: kelsallIndex,
+        saDispRatio: saDispRatio,
+        dispLengthRatio: dispLengthRatio,
+        estimatedBoatSpeed: estimatedBoatSpeed,
+        sailPerformancePercent: sailPerformancePercent,
+        hullSpeed: hullSpeed,
+        beamLengthRatio: beamLengthRatio,
+        bridgedeckRatio: bridgedeckRatio,
+        maxPolar: maxPolar,
+        upwindTarget: upwindTarget
+      },
+      indicators: indicators
+    };
+  },
+
+  /**
+   * Calculate absolute Maximum Speed across entire polar diagram
+   */
+  calculateMaxPolarSpeed(boat) {
+    const p = boat.polars;
+    const angles = [35, 45, 60, 90, 110, 135, 150, 180];
+    const windSpeeds = [8, 12, 16, 20, 25];
+    let maxSpeed = 0;
+    let optTwa = 110;
+    let optTws = 25;
+
+    windSpeeds.forEach(tws => {
+      const key = "tws" + tws;
+      if (p[key]) {
+        p[key].forEach((spd, idx) => {
+          if (spd > maxSpeed) {
+            maxSpeed = spd;
+            optTwa = angles[idx];
+            optTws = tws;
+          }
+        });
+      }
+    });
+
+    return {
+      maxSpeed: Math.round(maxSpeed * 10) / 10,
+      twa: optTwa,
+      tws: optTws
+    };
+  },
+
+  /**
+   * Calculate Optimal Upwind TWA and Best Upwind VMG
+   */
+  calculateOptimumUpwind(boat, tws) {
+    const hasDaggerboards = boat.keelType.toLowerCase().includes('dagger');
+    let bestTwa = hasDaggerboards ? 38 : 46;
+    let bestVmg = 0;
+
+    for (let testTwa = 30; testTwa <= 60; testTwa += 1) {
+      const spd = this.predictBasePolarSpeed(boat, tws, testTwa);
+      const leeway = this.calculateLeewayAngle(boat, tws, testTwa, spd, 28, tws * 1.3);
+      const trackRad = ((testTwa + leeway) * Math.PI) / 180.0;
+      const vmg = spd * Math.cos(trackRad);
+      if (vmg > bestVmg) {
+        bestVmg = vmg;
+        bestTwa = testTwa;
+      }
+    }
+
+    return {
+      twa: bestTwa,
+      vmg: Math.round(bestVmg * 10) / 10
+    };
+  },
+
+  /**
+   * Calculate hydrodynamic leeway drift angle (deg)
+   */
+  calculateLeewayAngle(boat, tws, twa, boatSpeed, awa, aws) {
+    if (boatSpeed < 0.5) return 0;
+    const hasDaggerboards = boat.keelType.toLowerCase().includes('dagger');
+    const isTrimaran = boat.category.toLowerCase().includes('trimaran');
+
+    let kFoil = 4.6;
+    if (hasDaggerboards) kFoil = 1.9;
+    else if (isTrimaran) kFoil = 2.8;
+
+    const awaRad = ((awa || 40) * Math.PI) / 180.0;
+    const speedRatio = (aws || tws) / Math.max(1.5, boatSpeed);
+    
+    let leeway = kFoil * Math.pow(speedRatio, 1.4) * Math.sin(awaRad) * 0.18;
+
+    if (twa > 70) {
+      leeway *= Math.max(0.05, Math.cos(((twa - 70) * Math.PI) / 220.0));
+    }
+
+    leeway = Math.max(0.2, Math.min(12.0, leeway));
+    return Math.round(leeway * 10) / 10;
+  },
         disp_light_lbs: disp_light_lbs,
         sa_upwind_m2: s.sail_area_upwind_m2,
         sa_upwind_ft2: sa_upwind_ft2,
@@ -353,16 +473,19 @@ const NAVAL_MATH = {
       'reef1': 0.82,
       'reef2': 0.64,
       'reef3': 0.45,
+      'reef4': 0.25,
       'none': 0.0
     };
     const mainFrac = mainReefMap[config.mainReef || 'full'] ?? 1.0;
 
     // 2. Headsail Type Base Area Multiplier & Angle Suitability
     const headsailConfigMap = {
-      'genoa': { name: 'Genoa (110%)', areaRatio: 1.0, minTwa: 32, maxTwa: 155, optTwa: 50 },
-      'solent': { name: 'Self-tacking Jib', areaRatio: 0.82, minTwa: 30, maxTwa: 145, optTwa: 45 },
-      'gennaker': { name: 'Code 0 / Gennaker', areaRatio: 1.85, minTwa: 60, maxTwa: 145, optTwa: 100 },
-      'spinnaker': { name: 'Asym Spinnaker', areaRatio: 2.30, minTwa: 110, maxTwa: 180, optTwa: 145 },
+      'genoa': { name: 'Standard Genoa (110%)', areaRatio: 1.0, minTwa: 32, maxTwa: 155, optTwa: 50 },
+      'solent': { name: 'Self-Tacking Jib / Solent', areaRatio: 0.82, minTwa: 28, maxTwa: 145, optTwa: 45 },
+      'code0': { name: 'Code 0 Reaching Sail', areaRatio: 1.85, minTwa: 50, maxTwa: 135, optTwa: 85 },
+      'coded': { name: 'Code D Furling Spinnaker', areaRatio: 2.10, minTwa: 75, maxTwa: 165, optTwa: 125 },
+      'parasailor': { name: 'Parasailor (Winged Spinnaker)', areaRatio: 2.60, minTwa: 105, maxTwa: 180, optTwa: 150 },
+      'spinnaker': { name: 'Asymmetrical Spinnaker', areaRatio: 2.35, minTwa: 105, maxTwa: 180, optTwa: 140 },
       'storm': { name: 'Storm Jib', areaRatio: 0.35, minTwa: 35, maxTwa: 180, optTwa: 60 },
       'none': { name: 'Furled (No Headsail)', areaRatio: 0.0, minTwa: 0, maxTwa: 180, optTwa: 90 }
     };
@@ -386,13 +509,20 @@ const NAVAL_MATH = {
     // 4. Calculate Base Polar Speed at TWS & TWA
     const basePolarSpeed = this.predictBasePolarSpeed(boat, tws, twa);
 
-    // 5. Sail Angle Efficiency (penalize if using off-wind sail upwind or reaching sail dead downwind)
+    // 5. Sail Angle Efficiency based on aerodynamic sail profile
     let angleEfficiency = 1.0;
-    if (config.headsailType === 'gennaker') {
-      if (twa < 50) angleEfficiency = Math.max(0.2, (twa - 30) / 20.0);
-      else if (twa > 155) angleEfficiency = 0.85;
+    if (config.headsailType === 'code0') {
+      if (twa < 45) angleEfficiency = Math.max(0.2, (twa - 30) / 15.0);
+      else if (twa > 140) angleEfficiency = 0.88;
+    } else if (config.headsailType === 'coded') {
+      if (twa < 65) angleEfficiency = Math.max(0.15, (twa - 45) / 20.0);
+      else if (twa >= 90 && twa <= 150) angleEfficiency = 1.08;
+    } else if (config.headsailType === 'parasailor') {
+      if (twa < 95) angleEfficiency = Math.max(0.1, (twa - 75) / 20.0);
+      else if (twa >= 120 && twa <= 180) angleEfficiency = 1.14; // Parasailor dynamic wing lift
     } else if (config.headsailType === 'spinnaker') {
-      if (twa < 90) angleEfficiency = Math.max(0.1, (twa - 70) / 20.0);
+      if (twa < 95) angleEfficiency = Math.max(0.1, (twa - 75) / 20.0);
+      else if (twa >= 115 && twa <= 165) angleEfficiency = 1.10;
     } else if (config.headsailType === 'solent' || config.headsailType === 'genoa') {
       if (twa > 140) angleEfficiency = 0.88;
     }
@@ -454,11 +584,19 @@ const NAVAL_MATH = {
     let awa = Math.round((Math.atan2(vy, vx) * 180.0) / Math.PI);
     if (awa < 0) awa += 360;
 
-    // 10. Velocity Made Good (VMG)
-    const upwindVmg = Math.round(boatSpeed * Math.cos(twaRad) * 10) / 10;
-    const downwindVmg = Math.round(boatSpeed * Math.cos(Math.PI - twaRad) * 10) / 10;
+    // 10. Hydrodynamic Leeway & Ground Track
+    const leewayAngle = this.calculateLeewayAngle(boat, tws, twa, boatSpeed, awa, aws);
+    const trackAngleRelWind = Math.round((twa + leewayAngle) * 10) / 10;
 
-    // 11. Point of Sail Description
+    // 11. Velocity Made Good (VMG) incorporating leeway track
+    const trackRad = (trackAngleRelWind * Math.PI) / 180.0;
+    const upwindVmg = Math.round(boatSpeed * Math.cos(trackRad) * 10) / 10;
+    const downwindVmg = Math.round(boatSpeed * Math.cos(Math.PI - trackRad) * 10) / 10;
+
+    // 12. Maximum Speed info for boat
+    const maxPolar = this.calculateMaxPolarSpeed(boat);
+
+    // 13. Point of Sail Description
     let pointOfSail = "Beam Reach";
     if (twa < 40) pointOfSail = "Close Hauled (Beating)";
     else if (twa < 60) pointOfSail = "Close Reach";
@@ -473,6 +611,8 @@ const NAVAL_MATH = {
       awa: awa,
       tws: tws,
       twa: twa,
+      leewayAngle: leewayAngle,
+      trackAngleRelWind: trackAngleRelWind,
       upwindVmg: upwindVmg,
       downwindVmg: downwindVmg,
       pointOfSail: pointOfSail,
@@ -481,6 +621,9 @@ const NAVAL_MATH = {
       activeMainArea: Math.round(activeMainArea * 10) / 10,
       activeHsArea: Math.round(activeHsArea * 10) / 10,
       sailPowerRatioPercent: Math.round(sailPowerRatio * 100),
+      maxPolarSpeed: maxPolar.maxSpeed,
+      maxPolarTwa: maxPolar.twa,
+      maxPolarTws: maxPolar.tws,
       safetyStatus: safetyStatus,
       safetyNotice: safetyNotice
     };

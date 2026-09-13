@@ -631,7 +631,7 @@
   }
 
   /**
-   * Render Interactive Polar Diagram on HTML5 Canvas
+   * Render Interactive Polar Diagram on HTML5 Canvas (High-Readability Edition)
    */
   function renderPolarChart() {
     const canvas = elements.polarCanvas;
@@ -648,28 +648,29 @@
     const height = rect.height;
     const centerX = width / 2;
     const centerY = height * 0.90;
-    const maxRadius = Math.min(width * 0.44, height * 0.82);
-    const maxSpeedScale = 25;
+    const maxRadius = Math.min(width * 0.43, height * 0.80);
+    const maxSpeedScale = 25; // 25 knots full scale
 
     ctx.clearRect(0, 0, width, height);
 
+    // 1. Draw Background Polar Grid Rings (5, 10, 15, 20, 25 kn)
     const speedRings = [5, 10, 15, 20, 25];
     speedRings.forEach(spd => {
       const r = (spd / maxSpeedScale) * maxRadius;
       ctx.beginPath();
       ctx.arc(centerX, centerY, r, Math.PI, 2 * Math.PI, false);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = spd % 10 === 0 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = spd % 10 === 0 ? 1.5 : 1;
+      ctx.setLineDash(spd % 10 === 0 ? [] : [4, 4]);
       ctx.stroke();
+      ctx.setLineDash([]);
 
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
-      ctx.font = '10px JetBrains Mono, monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(`${spd} kn`, centerX - r - 4, centerY - 2);
-      ctx.textAlign = 'left';
-      ctx.fillText(`${spd} kn`, centerX + r + 4, centerY - 2);
+      // Speed Ring Readout Badges (Left and Right)
+      drawPillBadge(ctx, centerX - r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
+      drawPillBadge(ctx, centerX + r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
     });
 
+    // 2. Draw Angle Radial Guidelines & High-Contrast Angle Badges
     const angles = [30, 45, 60, 90, 110, 135, 150, 180];
     angles.forEach(deg => {
       const rad = (deg - 90) * (Math.PI / 180);
@@ -679,26 +680,23 @@
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
-      ctx.strokeStyle = deg === 90 ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.06)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = deg === 90 ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = deg === 90 ? 1.8 : 1;
       ctx.stroke();
 
-      const labelX = centerX + (maxRadius + 14) * Math.cos(rad);
-      const labelY = centerY + (maxRadius + 14) * Math.sin(rad);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${deg}°`, labelX, labelY);
+      // Angle Label Pill at Radius Perimeter
+      const labelX = centerX + (maxRadius + 18) * Math.cos(rad);
+      const labelY = centerY + (maxRadius + 18) * Math.sin(rad);
+      drawPillBadge(ctx, labelX, labelY, `${deg}°`, '#1e293b', '#f8fafc', '#475569');
     });
 
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '11px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('TRUE WIND (0°)', centerX, centerY - maxRadius - 18);
+    // Draw True Wind Origin Badge at Top (0°)
+    drawPillBadge(ctx, centerX, centerY - maxRadius - 22, '▲ TRUE WIND 000° (TWS)', '#0284c7', '#ffffff', '#38bdf8', true);
 
+    // 3. Draw Boat Polar Curves with High Visibility Lines & Vertex Markers
     const twsList = state.selectedPolarTws === 'all' ? [8, 12, 16, 20, 25] : [state.selectedPolarTws];
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
+    const pointAngles = [35, 45, 60, 90, 110, 135, 150, 180];
 
     state.boats.forEach((boat, bIdx) => {
       if (!boat) return;
@@ -706,16 +704,15 @@
 
       twsList.forEach(tws => {
         ctx.beginPath();
-        const polarAngles = [35, 45, 60, 90, 110, 135, 150, 180];
         const points = [];
 
-        polarAngles.forEach((ang, idx) => {
+        pointAngles.forEach((ang) => {
           const spd = NAVAL_MATH.predictBoatSpeed(boat, tws, ang);
           const r = (spd / maxSpeedScale) * maxRadius;
           const rad = (ang - 90) * (Math.PI / 180);
           const px = centerX + r * Math.cos(rad);
           const py = centerY + r * Math.sin(rad);
-          points.push({ x: px, y: py });
+          points.push({ x: px, y: py, spd: spd, ang: ang });
         });
 
         if (points.length > 0) {
@@ -728,14 +725,26 @@
           ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
 
           ctx.strokeStyle = baseColor;
-          ctx.lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 1.5 : 2.5;
+          ctx.lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 2.0 : 3.5;
           ctx.stroke();
 
+          // Subtle Area Fill for Single TWS Mode
           if (state.selectedPolarTws !== 'all') {
             ctx.lineTo(centerX, centerY);
             ctx.closePath();
-            ctx.fillStyle = baseColor === '#06b6d4' ? 'rgba(6, 182, 212, 0.08)' : (baseColor === '#f59e0b' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(236, 72, 153, 0.08)');
+            ctx.fillStyle = bIdx === 0 ? 'rgba(6, 182, 212, 0.12)' : (bIdx === 1 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(236, 72, 153, 0.12)');
             ctx.fill();
+
+            // Draw Vertex Dots with speed tags
+            points.forEach(pt => {
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
+              ctx.fillStyle = baseColor;
+              ctx.fill();
+              ctx.strokeStyle = '#0f172a';
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+            });
           }
         }
       });
@@ -743,7 +752,7 @@
   }
 
   /**
-   * Render Multi-Dimensional Radar Spider Chart
+   * Render Multi-Dimensional Radar Spider Chart (High-Readability Edition)
    */
   function renderRadarChart() {
     const canvas = elements.radarCanvas;
@@ -760,7 +769,7 @@
     const height = rect.height;
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(width, height) * 0.36;
+    const radius = Math.min(width, height) * 0.35;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -775,6 +784,7 @@
 
     const totalAxes = axes.length;
 
+    // 1. Draw Concentric Polygonal Scale Grid Lines (2, 4, 6, 8, 10 Scale)
     for (let level = 2; level <= 10; level += 2) {
       const r = (level / 10) * radius;
       ctx.beginPath();
@@ -786,11 +796,17 @@
         else ctx.lineTo(x, y);
       }
       ctx.closePath();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
+      ctx.fillStyle = level % 4 === 0 ? 'rgba(255, 255, 255, 0.03)' : 'transparent';
+      ctx.fill();
+      ctx.strokeStyle = level === 10 ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = level === 10 ? 1.5 : 1;
       ctx.stroke();
+
+      // Scale Score Tag along Vertical Axis (e.g. 2, 4, 6, 8, 10)
+      drawPillBadge(ctx, centerX, centerY - r, `${level}/10`, '#0f172a', '#94a3b8', '#334155');
     }
 
+    // 2. Draw Axis Spokes & High-Contrast Axis Name Badges
     for (let i = 0; i < totalAxes; i++) {
       const angle = (i * 2 * Math.PI / totalAxes) - (Math.PI / 2);
       const x = centerX + radius * Math.cos(angle);
@@ -799,25 +815,25 @@
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      const labelRadius = radius + 20;
+      // Axis Label Pill Box with Border
+      const labelRadius = radius + 26;
       const lx = centerX + labelRadius * Math.cos(angle);
       const ly = centerY + labelRadius * Math.sin(angle);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '11px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(axes[i].name, lx, ly);
+      drawPillBadge(ctx, lx, ly, axes[i].name, '#1e293b', '#f8fafc', '#38bdf8');
     }
 
+    // 3. Plot Boat Polygons
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
-    const fills = ['rgba(6, 182, 212, 0.2)', 'rgba(245, 158, 11, 0.2)', 'rgba(236, 72, 153, 0.2)'];
+    const fills = ['rgba(6, 182, 212, 0.22)', 'rgba(245, 158, 11, 0.22)', 'rgba(236, 72, 153, 0.22)'];
 
     state.boats.forEach((boat, bIdx) => {
       if (!boat) return;
       const m = NAVAL_MATH.calculateBoatMetrics(boat);
+      const points = [];
 
       ctx.beginPath();
       for (let i = 0; i < totalAxes; i++) {
@@ -826,6 +842,7 @@
         const angle = (i * 2 * Math.PI / totalAxes) - (Math.PI / 2);
         const x = centerX + r * Math.cos(angle);
         const y = centerY + r * Math.sin(angle);
+        points.push({ x, y, score });
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -833,9 +850,50 @@
       ctx.fillStyle = fills[bIdx];
       ctx.fill();
       ctx.strokeStyle = colors[bIdx];
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.8;
       ctx.stroke();
+
+      // Vertex Dots
+      points.forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = colors[bIdx];
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
     });
+  }
+
+  /**
+   * Helper to draw clean, readable pill badges with background containers
+   */
+  function drawPillBadge(ctx, x, y, text, bgColor, textColor, borderColor, isBold) {
+    ctx.font = isBold ? 'bold 11px Inter, sans-serif' : '600 10.5px Inter, sans-serif';
+    const textWidth = ctx.measureText(text).width;
+    const paddingX = 7;
+    const paddingY = 3.5;
+    const boxW = textWidth + paddingX * 2;
+    const boxH = 18;
+    const boxX = x - boxW / 2;
+    const boxY = y - boxH / 2;
+
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 4);
+    ctx.fill();
+
+    if (borderColor) {
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y + 0.5);
   }
 
   /**

@@ -176,19 +176,25 @@
           <!-- Polar Curve Canvas Box -->
           <div class="chart-canvas-box">
             <div class="polar-controls-bar">
-              <div class="chart-legend">
-                <div class="legend-item"><span class="legend-dot boat1"></span><span>Boat 1</span></div>
-                <div class="legend-item"><span class="legend-dot boat2"></span><span>Boat 2</span></div>
-                <div class="legend-item"><span class="legend-dot boat3"></span><span>Boat 3</span></div>
+              <div class="chart-legend" id="polarLegendContainer">
+                <div class="legend-item"><span class="legend-dot boat1"></span><span id="polarLegendText1">Boat 1</span></div>
+                <div class="legend-item"><span class="legend-dot boat2"></span><span id="polarLegendText2">Boat 2</span></div>
+                <div class="legend-item"><span class="legend-dot boat3"></span><span id="polarLegendText3">Boat 3</span></div>
+              </div>
+
+              <div class="zoom-controls-group">
+                <button type="button" class="zoom-btn" id="polarZoomInBtn" title="Zoom In Polars (finer speed rings)">🔍 +</button>
+                <button type="button" class="zoom-btn" id="polarZoomOutBtn" title="Zoom Out Polars (higher max speed)">🔍 −</button>
+                <button type="button" class="zoom-btn" id="polarZoomResetBtn" title="Reset Zoom">Reset</button>
               </div>
 
               <div class="tws-pills" id="twsPillsContainer">
-                <button class="tws-pill" data-tws="8">8 kn Wind</button>
-                <button class="tws-pill" data-tws="12">12 kn</button>
-                <button class="tws-pill active" data-tws="16">16 kn</button>
-                <button class="tws-pill" data-tws="20">20 kn</button>
-                <button class="tws-pill" data-tws="25">25 kn</button>
-                <button class="tws-pill" data-tws="all">All TWS</button>
+                <button type="button" class="tws-pill" data-tws="8">8 kn</button>
+                <button type="button" class="tws-pill" data-tws="12">12 kn</button>
+                <button type="button" class="tws-pill active" data-tws="16">16 kn</button>
+                <button type="button" class="tws-pill" data-tws="20">20 kn</button>
+                <button type="button" class="tws-pill" data-tws="25">25 kn</button>
+                <button type="button" class="tws-pill" data-tws="all">All TWS</button>
               </div>
             </div>
 
@@ -200,6 +206,11 @@
             <div class="polar-controls-bar">
               <div class="radar-header-title">
                 Design Balance Radar Matrix (0–10 Scale)
+              </div>
+              <div class="zoom-controls-group">
+                <button type="button" class="zoom-btn" id="radarZoomInBtn" title="Zoom In Radar">🔍 +</button>
+                <button type="button" class="zoom-btn" id="radarZoomOutBtn" title="Zoom Out Radar">🔍 −</button>
+                <button type="button" class="zoom-btn" id="radarZoomResetBtn" title="Reset Radar Zoom">Reset</button>
               </div>
             </div>
             <canvas id="radarCanvas" class="chart-canvas"></canvas>
@@ -219,7 +230,7 @@
               </svg>
               Velocity Prediction Program (VPP) & Sail Reefing Simulator
             </h2>
-            <p class="section-subtitle">Dynamically adjust True Wind Speed, True Wind Angle, Mainsail Reefs, Headsail Types, and Furling to predict boat speeds based on manufacturer polar data.</p>
+            <p class="section-subtitle">Dynamically adjust True Wind Speed (up to 85+ knots), True Wind Angle, Mainsail Reefs, Headsails & Furling to predict boat speed, leeway drift & apparent wind.</p>
           </div>
         </div>
 
@@ -233,22 +244,24 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
                 </svg>
-                <span>Wind Conditions</span>
+                <span>Wind Conditions (Up to 85+ Knots)</span>
               </div>
 
-              <!-- TWS Slider -->
+              <!-- TWS Slider (2 to 85 kn) -->
               <div class="sim-slider-group">
                 <label for="simTwsInput" class="sim-slider-label">
                   <span>True Wind Speed (TWS)</span>
-                  <span id="simTwsVal" class="val">16 kn</span>
+                  <span id="simTwsVal" class="val">16 kn Moderate</span>
                 </label>
-                <input type="range" id="simTwsInput" class="range-input" min="2" max="45" value="16" step="1" title="Adjust True Wind Speed in knots" aria-label="True Wind Speed in knots">
+                <input type="range" id="simTwsInput" class="range-input" min="2" max="85" value="16" step="1" title="Adjust True Wind Speed in knots" aria-label="True Wind Speed in knots">
                 <div class="preset-buttons-row">
                   <button type="button" class="preset-btn" data-tws="8">8 kn Light</button>
-                  <button type="button" class="preset-btn active" data-tws="16">16 kn Moderate</button>
-                  <button type="button" class="preset-btn" data-tws="22">22 kn Fresh</button>
-                  <button type="button" class="preset-btn" data-tws="28">28 kn Strong</button>
-                  <button type="button" class="preset-btn" data-tws="35">35 kn Gale</button>
+                  <button type="button" class="preset-btn active" data-tws="16">16 kn Mod</button>
+                  <button type="button" class="preset-btn" data-tws="25">25 kn Strong</button>
+                  <button type="button" class="preset-btn" data-tws="38">38 kn Gale</button>
+                  <button type="button" class="preset-btn" data-tws="50">50 kn Storm</button>
+                  <button type="button" class="preset-btn" data-tws="65">65 kn Severe</button>
+                  <button type="button" class="preset-btn" data-tws="80">80 kn Hurricane</button>
                 </div>
               </div>
 
@@ -258,7 +271,7 @@
                   <span>True Wind Angle (TWA)</span>
                   <span id="simTwaVal" class="val">90° Beam Reach</span>
                 </label>
-                <input type="range" id="simTwaInput" class="range-input" min="30" max="180" value="90" step="1" title="Adjust True Wind Angle in degrees" aria-label="True Wind Angle in degrees">
+                <input type="range" id="simTwaInput" class="range-input" min="28" max="180" value="90" step="1" title="Adjust True Wind Angle in degrees" aria-label="True Wind Angle in degrees">
                 <div class="preset-buttons-row">
                   <button type="button" class="preset-twa-btn" data-twa="38">38° Close Hauled</button>
                   <button type="button" class="preset-twa-btn" data-twa="60">60° Close Reach</button>
@@ -275,52 +288,55 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M3 18l3-12 15 12H3zm13.5-3.5L12 9.5l-4.5 5h9z"/>
                 </svg>
-                <span>Sail Trim & Reefing Configuration</span>
+                <span>Sail Trim & Reefing Marks</span>
               </div>
 
               <!-- Mainsail Reefing -->
               <div class="sim-config-group">
                 <label class="sim-config-label" for="simMainReefSelect">
-                  <span>Mainsail Reefing</span>
-                  <span id="simMainReefDesc" class="config-desc">Full Main (100% Area)</span>
+                  <span>Mainsail Reef Mark</span>
+                  <span id="simMainReefDesc" class="config-desc">Full Mainsail (100% Area)</span>
                 </label>
                 <select id="simMainReefSelect" class="sim-select-dropdown" aria-label="Mainsail Reefing">
-                  <option value="full" selected>Full Mainsail (100% Area)</option>
-                  <option value="reef1">Reef 1 (82% Area - 18-22 kn TWS)</option>
-                  <option value="reef2">Reef 2 (64% Area - 23-28 kn TWS)</option>
-                  <option value="reef3">Reef 3 (45% Area - 29-38 kn TWS)</option>
-                  <option value="none">Dropped / Furled (0% Area - Storm/Motor)</option>
+                  <option value="full" selected>Full Mainsail (100% Area - 0-18 kn)</option>
+                  <option value="reef1">Mainsail Reef 1 (82% Area - 18-23 kn)</option>
+                  <option value="reef2">Mainsail Reef 2 (64% Area - 23-28 kn)</option>
+                  <option value="reef3">Mainsail Reef 3 (45% Area - 28-36 kn)</option>
+                  <option value="reef4">Mainsail Reef 4 / Deep Reef (25% Area - 36-45 kn)</option>
+                  <option value="none">Mainsail Dropped / Furled (0% Area)</option>
                 </select>
               </div>
 
               <!-- Headsail Selection -->
               <div class="sim-config-group">
                 <label class="sim-config-label" for="simHeadsailTypeSelect">
-                  <span>Headsail Type</span>
-                  <span id="simHeadsailDesc" class="config-desc">Overlapping Genoa (110%)</span>
+                  <span>Headsail Selection</span>
+                  <span id="simHeadsailDesc" class="config-desc">Standard Genoa (110%)</span>
                 </label>
                 <select id="simHeadsailTypeSelect" class="sim-select-dropdown" aria-label="Headsail Type">
-                  <option value="genoa" selected>Standard Genoa (100% / 110% Overlap)</option>
-                  <option value="solent">Self-Tacking Jib / Solent (82% Area)</option>
-                  <option value="gennaker">Code 0 / Gennaker / Screecher (185% Area)</option>
-                  <option value="spinnaker">Asymmetrical Spinnaker (230% Area)</option>
+                  <option value="genoa" selected>Standard Genoa (110% Overlap - Upwind/Reaching)</option>
+                  <option value="solent">Self-Tacking Solent / Jib (82% Area - Heavy Upwind)</option>
+                  <option value="code0">Code 0 (185% Area - Light Air Reaching 50°-135°)</option>
+                  <option value="coded">Code D (210% Area - Downwind Furler 75°-165°)</option>
+                  <option value="parasailor">Parasailor (260% Area - Winged Downwind 105°-180°)</option>
+                  <option value="spinnaker">Asymmetrical Spinnaker (235% Area - 105°-180°)</option>
                   <option value="storm">Heavy Weather Storm Jib (35% Area)</option>
                   <option value="none">Furled (No Headsail)</option>
                 </select>
               </div>
 
-              <!-- Headsail Reefing / Furling -->
+              <!-- Genoa / Headsail Reef Marks -->
               <div class="sim-config-group">
                 <label class="sim-config-label" for="simHeadsailReefSelect">
-                  <span>Headsail Furling Level</span>
-                  <span id="simHeadsailReefDesc" class="config-desc">100% Unfurled</span>
+                  <span>Genoa / Headsail Reef Mark</span>
+                  <span id="simHeadsailReefDesc" class="config-desc">Genoa Full (100% Deployed)</span>
                 </label>
-                <select id="simHeadsailReefSelect" class="sim-select-dropdown" aria-label="Headsail Furling Level">
-                  <option value="1.0" selected>100% - Fully Deployed</option>
-                  <option value="0.75">75% - 1st Furling Mark</option>
-                  <option value="0.50">50% - Half Furled</option>
-                  <option value="0.25">25% - Heavy Weather Furled</option>
-                  <option value="0.0">0% - Fully Furled</option>
+                <select id="simHeadsailReefSelect" class="sim-select-dropdown" aria-label="Headsail Reef Mark">
+                  <option value="1.0" selected>Genoa Full (100% Deployed)</option>
+                  <option value="0.80">Genoa Reef 1 (80% Area - 1st Mark)</option>
+                  <option value="0.60">Genoa Reef 2 (60% Area - 2nd Mark)</option>
+                  <option value="0.40">Genoa Reef 3 (40% Area - 3rd Mark)</option>
+                  <option value="0.0">Genoa Furled (0% Area - Fully Furled)</option>
                 </select>
               </div>
 
