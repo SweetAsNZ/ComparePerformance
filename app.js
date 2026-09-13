@@ -11,6 +11,8 @@
     unit: 'metric', // 'metric' | 'imperial'
     activeTab: 'indicators',
     selectedPolarTws: 16, // 8, 12, 16, 20, 25, or 'all'
+    polarMaxSpeed: 25, // Zoomable polar speed scale (12 to 50 kn)
+    radarZoom: 1.0, // Zoomable radar scale (0.6 to 1.8)
     sim: {
       tws: 16,
       twa: 90,
@@ -42,6 +44,17 @@
     pointOfSailBadge: document.getElementById('pointOfSailBadge'),
     twsPillsContainer: document.getElementById('twsPillsContainer'),
     
+    // Zoom Controls
+    polarZoomInBtn: document.getElementById('polarZoomInBtn'),
+    polarZoomOutBtn: document.getElementById('polarZoomOutBtn'),
+    polarZoomResetBtn: document.getElementById('polarZoomResetBtn'),
+    radarZoomInBtn: document.getElementById('radarZoomInBtn'),
+    radarZoomOutBtn: document.getElementById('radarZoomOutBtn'),
+    radarZoomResetBtn: document.getElementById('radarZoomResetBtn'),
+    polarLegendText1: document.getElementById('polarLegendText1'),
+    polarLegendText2: document.getElementById('polarLegendText2'),
+    polarLegendText3: document.getElementById('polarLegendText3'),
+
     // Simulator Controls
     simTwsInput: document.getElementById('simTwsInput'),
     simTwaInput: document.getElementById('simTwaInput'),
@@ -199,6 +212,49 @@
       window.print();
     });
 
+    // Zoom Controls
+    if (elements.polarZoomInBtn) {
+      elements.polarZoomInBtn.addEventListener('click', () => {
+        state.polarMaxSpeed = Math.max(12, state.polarMaxSpeed - 4);
+        renderPolarChart();
+        showToast(`Polar Scale: ${state.polarMaxSpeed} kn max`);
+      });
+    }
+    if (elements.polarZoomOutBtn) {
+      elements.polarZoomOutBtn.addEventListener('click', () => {
+        state.polarMaxSpeed = Math.min(60, state.polarMaxSpeed + 5);
+        renderPolarChart();
+        showToast(`Polar Scale: ${state.polarMaxSpeed} kn max`);
+      });
+    }
+    if (elements.polarZoomResetBtn) {
+      elements.polarZoomResetBtn.addEventListener('click', () => {
+        state.polarMaxSpeed = 25;
+        renderPolarChart();
+        showToast('Polar Zoom Reset (25 kn)');
+      });
+    }
+
+    if (elements.radarZoomInBtn) {
+      elements.radarZoomInBtn.addEventListener('click', () => {
+        state.radarZoom = Math.min(1.8, state.radarZoom + 0.2);
+        renderRadarChart();
+      });
+    }
+    if (elements.radarZoomOutBtn) {
+      elements.radarZoomOutBtn.addEventListener('click', () => {
+        state.radarZoom = Math.max(0.5, state.radarZoom - 0.2);
+        renderRadarChart();
+      });
+    }
+    if (elements.radarZoomResetBtn) {
+      elements.radarZoomResetBtn.addEventListener('click', () => {
+        state.radarZoom = 1.0;
+        renderRadarChart();
+        showToast('Radar Zoom Reset');
+      });
+    }
+
     // Tab Navigation
     elements.tabNavBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -329,15 +385,33 @@
     });
   }
 
+  function updateTwsDisplay() {
+    const tws = state.sim.tws;
+    let desc = "Moderate Breeze";
+    if (tws <= 5) desc = "Light Air";
+    else if (tws <= 10) desc = "Light Breeze";
+    else if (tws <= 15) desc = "Moderate";
+    else if (tws <= 21) desc = "Fresh Breeze";
+    else if (tws <= 27) desc = "Strong Breeze";
+    else if (tws <= 33) desc = "Near Gale";
+    else if (tws <= 40) desc = "Gale Force";
+    else if (tws <= 47) desc = "Strong Gale";
+    else if (tws <= 55) desc = "Storm (Beaufort 10)";
+    else if (tws <= 63) desc = "Violent Storm (Beaufort 11)";
+    else desc = "Hurricane Force (Beaufort 12+)";
+
+    elements.simTwsVal.textContent = `${tws} kn ${desc}`;
+  }
+
   function updateTwaDisplay() {
     const twa = state.sim.twa;
     let pos = "Beam Reach";
-    if (twa < 40) pos = "Close Hauled";
+    if (twa < 40) pos = "Close Hauled (Beating)";
     else if (twa < 60) pos = "Close Reach";
     else if (twa <= 110) pos = "Beam Reach";
     else if (twa <= 145) pos = "Broad Reach";
     else if (twa <= 165) pos = "Deep Broad Reach";
-    else pos = "Dead Run";
+    else pos = "Dead Run (Running)";
 
     elements.simTwaVal.textContent = `${twa}° ${pos}`;
     if (elements.pointOfSailBadge) elements.pointOfSailBadge.textContent = pos;
@@ -351,6 +425,7 @@
         btn.classList.remove('active');
       }
     });
+    updateTwsDisplay();
   }
 
   function updatePresetTwaButtons(val) {
@@ -406,6 +481,8 @@
       const bIdx = index + 1;
       const metrics = NAVAL_MATH.calculateBoatMetrics(boat);
       const u = isMetric ? metrics.metric : metrics.imperial;
+      const coreBadge = boat.coreCategory || "Balsa / Foam";
+      const marketPrice = boat.avgMarketPrice || boat.priceEstimate || "Contact Dealer";
 
       const card = document.createElement('div');
       card.className = `boat-hero-card boat${bIdx}`;
@@ -418,14 +495,30 @@
           <div class="boat-builder-name">${boat.manufacturer} • ${boat.year}</div>
           <h2 class="boat-model-name">${boat.name}</h2>
           
+          <!-- Core Construction & Market Price Chips -->
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+              📦 ${coreBadge}
+            </span>
+            <span style="font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">
+              💰 ${marketPrice}
+            </span>
+          </div>
+
           <div class="hero-stats-banner">
             <div class="hero-stat-item">
-              <div class="hero-stat-label">Sail Performance</div>
-              <div class="hero-stat-val" style="color: var(--boat${bIdx}-color)">${metrics.indicators.sailPerf.value}<span>%</span></div>
+              <div class="hero-stat-label">Max Speed (Polar)</div>
+              <div class="hero-stat-val" style="color: var(--boat${bIdx}-color)">
+                ${metrics.raw.maxPolar.maxSpeed}<span> kn</span>
+              </div>
+              <small style="font-size: 0.68rem; color: #94a3b8;">@ ${metrics.raw.maxPolar.twa}° in ${metrics.raw.maxPolar.tws}kn</small>
             </div>
             <div class="hero-stat-item">
-              <div class="hero-stat-label">Reaching Speed (15kn)</div>
-              <div class="hero-stat-val">${metrics.indicators.boatSpeed.value}<span> kn</span></div>
+              <div class="hero-stat-label">Best Upwind VMG</div>
+              <div class="hero-stat-val">
+                ${metrics.raw.upwindTarget.vmg}<span> kn</span>
+              </div>
+              <small style="font-size: 0.68rem; color: #94a3b8;">@ ${metrics.raw.upwindTarget.twa}° TWA</small>
             </div>
           </div>
 
@@ -462,6 +555,7 @@
     const indicatorKeys = [
       'sailPerf',
       'boatSpeed',
+      'maxSpeed',
       'bruceNumber',
       'kelsall',
       'saDisp',
@@ -557,6 +651,8 @@
           { label: "Displacement (Light)", getVal: (m, b) => isMetric ? m.metric.displacement_light : m.imperial.displacement_light },
           { label: "Displacement (Loaded)", getVal: (m, b) => isMetric ? m.metric.displacement_loaded : m.imperial.displacement_loaded },
           { label: "Payload Capacity", getVal: (m, b) => isMetric ? m.metric.payload_capacity : m.imperial.payload_capacity },
+          { label: "Max Speed (Polar Target)", getVal: (m, b) => `${m.raw.maxPolar.maxSpeed} kn (@ ${m.raw.maxPolar.twa}° in ${m.raw.maxPolar.tws}kn wind)` },
+          { label: "Best Upwind Tack & VMG", getVal: (m, b) => `${m.raw.upwindTarget.twa}° TWA (VMG ${m.raw.upwindTarget.vmg} kn, Leeway ~${NAVAL_MATH.calculateLeewayAngle(b, 15, m.raw.upwindTarget.twa, m.raw.estimatedBoatSpeed, 30, 18)}°)` },
           { label: "Bruce Number", getVal: (m, b) => m.raw.bruceNumber.toFixed(2) },
           { label: "Kelsall Index", getVal: (m, b) => m.raw.kelsallIndex.toFixed(2) },
           { label: "Sail Area / Displacement (SA/D)", getVal: (m, b) => m.raw.saDispRatio.toFixed(1) },
@@ -588,18 +684,19 @@
         ]
       },
       {
-        name: "Design & Construction",
+        name: "Design, Construction & Market Value",
         rows: [
+          { label: "Core Material Classification", getVal: (m, b) => b.coreCategory || "Balsa / Foam (Hull # dependent)" },
+          { label: "Hull & Deck Core Details", getVal: (m, b) => b.coreDetails || b.hullMaterial },
+          { label: "Avg YachtWorld Market Price", getVal: (m, b) => b.avgMarketPrice || b.priceEstimate },
           { label: "Naval Architect / Designer", getVal: (m, b) => b.designer },
           { label: "Interior Designer", getVal: (m, b) => b.interiorDesigner || b.designer },
           { label: "Keel / Appendage Type", getVal: (m, b) => b.keelType },
           { label: "Helm Station Configuration", getVal: (m, b) => b.helmType },
           { label: "Steering Mechanism", getVal: (m, b) => b.steering || "Direct Linkage" },
           { label: "Standard Engines", getVal: (m, b) => b.engines },
-          { label: "Hull Material & Core", getVal: (m, b) => b.hullMaterial },
           { label: "CE Ocean Category", getVal: (m, b) => b.ceCategory },
           { label: "Production Years", getVal: (m, b) => b.year },
-          { label: "Estimated Base Price", getVal: (m, b) => b.priceEstimate },
         ]
       }
     ];
@@ -631,7 +728,7 @@
   }
 
   /**
-   * Render Interactive Polar Diagram on HTML5 Canvas (High-Readability Edition)
+   * Render Interactive Polar Diagram on HTML5 Canvas (Zoomable & Dynamic Labels)
    */
   function renderPolarChart() {
     const canvas = elements.polarCanvas;
@@ -649,12 +746,28 @@
     const centerX = width / 2;
     const centerY = height * 0.90;
     const maxRadius = Math.min(width * 0.43, height * 0.80);
-    const maxSpeedScale = 25; // 25 knots full scale
+    const maxSpeedScale = state.polarMaxSpeed || 25;
+
+    // Update Polar Legend Labels with exact model names and size
+    if (elements.polarLegendText1) {
+      elements.polarLegendText1.textContent = state.boats[0] ? `${state.boats[0].name} (${state.boats[0].specs.loa_m}m / ${Math.round(state.boats[0].specs.loa_m * 3.28)}ft)` : 'Boat 1';
+    }
+    if (elements.polarLegendText2) {
+      elements.polarLegendText2.textContent = state.boats[1] ? `${state.boats[1].name} (${state.boats[1].specs.loa_m}m / ${Math.round(state.boats[1].specs.loa_m * 3.28)}ft)` : 'Boat 2';
+    }
+    if (elements.polarLegendText3) {
+      elements.polarLegendText3.textContent = state.boats[2] ? `${state.boats[2].name} (${state.boats[2].specs.loa_m}m / ${Math.round(state.boats[2].specs.loa_m * 3.28)}ft)` : 'Boat 3';
+    }
 
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Background Polar Grid Rings (5, 10, 15, 20, 25 kn)
-    const speedRings = [5, 10, 15, 20, 25];
+    // 1. Draw Background Polar Grid Rings based on current zoom scale
+    const ringStep = maxSpeedScale <= 16 ? 2 : (maxSpeedScale <= 30 ? 5 : 10);
+    const speedRings = [];
+    for (let s = ringStep; s <= maxSpeedScale; s += ringStep) {
+      speedRings.push(s);
+    }
+
     speedRings.forEach(spd => {
       const r = (spd / maxSpeedScale) * maxRadius;
       ctx.beginPath();
@@ -665,7 +778,6 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Speed Ring Readout Badges (Left and Right)
       drawPillBadge(ctx, centerX - r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
       drawPillBadge(ctx, centerX + r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
     });
@@ -684,13 +796,11 @@
       ctx.lineWidth = deg === 90 ? 1.8 : 1;
       ctx.stroke();
 
-      // Angle Label Pill at Radius Perimeter
       const labelX = centerX + (maxRadius + 18) * Math.cos(rad);
       const labelY = centerY + (maxRadius + 18) * Math.sin(rad);
       drawPillBadge(ctx, labelX, labelY, `${deg}°`, '#1e293b', '#f8fafc', '#475569');
     });
 
-    // Draw True Wind Origin Badge at Top (0°)
     drawPillBadge(ctx, centerX, centerY - maxRadius - 22, '▲ TRUE WIND 000° (TWS)', '#0284c7', '#ffffff', '#38bdf8', true);
 
     // 3. Draw Boat Polar Curves with High Visibility Lines & Vertex Markers
@@ -728,14 +838,12 @@
           ctx.lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 2.0 : 3.5;
           ctx.stroke();
 
-          // Subtle Area Fill for Single TWS Mode
           if (state.selectedPolarTws !== 'all') {
             ctx.lineTo(centerX, centerY);
             ctx.closePath();
             ctx.fillStyle = bIdx === 0 ? 'rgba(6, 182, 212, 0.12)' : (bIdx === 1 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(236, 72, 153, 0.12)');
             ctx.fill();
 
-            // Draw Vertex Dots with speed tags
             points.forEach(pt => {
               ctx.beginPath();
               ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
@@ -752,7 +860,7 @@
   }
 
   /**
-   * Render Multi-Dimensional Radar Spider Chart (High-Readability Edition)
+   * Render Multi-Dimensional Radar Spider Chart (Zoomable Edition)
    */
   function renderRadarChart() {
     const canvas = elements.radarCanvas;
@@ -769,7 +877,8 @@
     const height = rect.height;
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(width, height) * 0.35;
+    const zoomFactor = state.radarZoom || 1.0;
+    const radius = Math.min(width, height) * 0.35 * zoomFactor;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -784,7 +893,6 @@
 
     const totalAxes = axes.length;
 
-    // 1. Draw Concentric Polygonal Scale Grid Lines (2, 4, 6, 8, 10 Scale)
     for (let level = 2; level <= 10; level += 2) {
       const r = (level / 10) * radius;
       ctx.beginPath();
@@ -802,11 +910,9 @@
       ctx.lineWidth = level === 10 ? 1.5 : 1;
       ctx.stroke();
 
-      // Scale Score Tag along Vertical Axis (e.g. 2, 4, 6, 8, 10)
       drawPillBadge(ctx, centerX, centerY - r, `${level}/10`, '#0f172a', '#94a3b8', '#334155');
     }
 
-    // 2. Draw Axis Spokes & High-Contrast Axis Name Badges
     for (let i = 0; i < totalAxes; i++) {
       const angle = (i * 2 * Math.PI / totalAxes) - (Math.PI / 2);
       const x = centerX + radius * Math.cos(angle);
@@ -819,14 +925,12 @@
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Axis Label Pill Box with Border
       const labelRadius = radius + 26;
       const lx = centerX + labelRadius * Math.cos(angle);
       const ly = centerY + labelRadius * Math.sin(angle);
       drawPillBadge(ctx, lx, ly, axes[i].name, '#1e293b', '#f8fafc', '#38bdf8');
     }
 
-    // 3. Plot Boat Polygons
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
     const fills = ['rgba(6, 182, 212, 0.22)', 'rgba(245, 158, 11, 0.22)', 'rgba(236, 72, 153, 0.22)'];
 
@@ -853,7 +957,6 @@
       ctx.lineWidth = 2.8;
       ctx.stroke();
 
-      // Vertex Dots
       points.forEach(pt => {
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, 4.5, 0, 2 * Math.PI);
@@ -873,7 +976,6 @@
     ctx.font = isBold ? 'bold 11px Inter, sans-serif' : '600 10.5px Inter, sans-serif';
     const textWidth = ctx.measureText(text).width;
     const paddingX = 7;
-    const paddingY = 3.5;
     const boxW = textWidth + paddingX * 2;
     const boxH = 18;
     const boxX = x - boxW / 2;
@@ -918,14 +1020,12 @@
 
     ctx.clearRect(0, 0, width, height);
 
-    // Compass Circle
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Cardinal Points
     ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
     ctx.font = '10px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
@@ -935,24 +1035,18 @@
     ctx.fillText('090° STBD', centerX + radius + 28, centerY);
     ctx.fillText('270° PORT', centerX - radius - 28, centerY);
 
-    // Draw Catamaran Silhouette at Center (Bow pointing UP / 0°)
     ctx.save();
     ctx.translate(centerX, centerY);
     
-    // Twin Hulls
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    // Port hull
     ctx.beginPath();
     ctx.roundRect(-24, -22, 6, 44, 3);
     ctx.fill();
-    // Starboard hull
     ctx.beginPath();
     ctx.roundRect(18, -22, 6, 44, 3);
     ctx.fill();
-    // Bridgedeck
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.fillRect(-18, -8, 36, 24);
-    // Mast / Boom
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -961,15 +1055,12 @@
 
     ctx.restore();
 
-    // Draw True Wind Arrow (originating at TWA on starboard side)
     const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
     const twX = centerX + radius * Math.cos(twaRad);
     const twY = centerY + radius * Math.sin(twaRad);
 
-    // True Wind Inbound Arrow
     drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5, `TWS ${state.sim.tws} kn (${state.sim.twa}°)`);
 
-    // Draw Apparent Wind Vector for Boat 1 as representative
     if (state.boats[0]) {
       const vpp1 = NAVAL_MATH.simulateSailPerformance(state.boats[0], state.sim);
       const awaRad = (vpp1.awa - 90) * (Math.PI / 180.0);
@@ -990,7 +1081,6 @@
     ctx.lineWidth = width;
     ctx.stroke();
 
-    // Arrowhead
     ctx.beginPath();
     ctx.moveTo(toX, toY);
     ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
@@ -999,7 +1089,6 @@
     ctx.fillStyle = color;
     ctx.fill();
 
-    // Label
     if (label) {
       ctx.fillStyle = color;
       ctx.font = '10px Inter, sans-serif';
@@ -1030,13 +1119,15 @@
       const areaUnit = isMetric ? "m²" : "sq ft";
       const totalAreaVal = isMetric ? v.activeTotalArea : Math.round(v.activeTotalArea * 10.7639);
       const safeClass = v.safetyStatus.replace(/\s+/g, '-');
+      const coreBadge = boat.coreCategory || "Balsa / Foam";
+      const marketPrice = boat.avgMarketPrice || boat.priceEstimate || "Contact Dealer";
 
       const card = document.createElement('div');
       card.className = `vpp-boat-card boat${bIdx}`;
       card.innerHTML = `
         <div class="vpp-card-header">
           <div>
-            <div class="vpp-boat-brand">${boat.manufacturer}</div>
+            <div class="vpp-boat-brand">${boat.manufacturer} • ${coreBadge}</div>
             <div class="vpp-boat-name">${boat.name}</div>
           </div>
           ${isFastest ? '<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(16, 185, 129, 0.4);">★ FASTEST</span>' : ''}
@@ -1061,16 +1152,20 @@
 
         <div class="vpp-detail-specs">
           <div class="vpp-spec-row">
+            <span class="name">Leeway Drift</span>
+            <span class="val" style="color: #38bdf8;">${v.leewayAngle}° (Track: ${v.trackAngleRelWind}°)</span>
+          </div>
+          <div class="vpp-spec-row">
             <span class="name">Active Sail Area</span>
             <span class="val">${totalAreaVal} ${areaUnit} (${v.sailPowerRatioPercent}%)</span>
           </div>
           <div class="vpp-spec-row">
-            <span class="name">Polar Reference Target</span>
-            <span class="val">${NAVAL_MATH.predictBasePolarSpeed(boat, state.sim.tws, state.sim.twa).toFixed(1)} kn</span>
+            <span class="name">Max Polar Speed</span>
+            <span class="val" style="color: #34d399;">${v.maxPolarSpeed} kn (@ ${v.maxPolarTwa}° in ${v.maxPolarTws}kn)</span>
           </div>
           <div class="vpp-spec-row">
-            <span class="name">Cruising Load Factor</span>
-            <span class="val">+${state.sim.payloadTons} t (${(Math.pow(boat.specs.displacement_light_t / (boat.specs.displacement_light_t + state.sim.payloadTons), 0.35) * 100).toFixed(0)}% speed)</span>
+            <span class="name">YachtWorld Avg Market</span>
+            <span class="val" style="color: #fbbf24;">${marketPrice}</span>
           </div>
         </div>
 

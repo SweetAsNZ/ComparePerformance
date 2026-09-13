@@ -328,22 +328,6 @@ const NAVAL_MATH = {
     leeway = Math.max(0.2, Math.min(12.0, leeway));
     return Math.round(leeway * 10) / 10;
   },
-        disp_light_lbs: disp_light_lbs,
-        sa_upwind_m2: s.sail_area_upwind_m2,
-        sa_upwind_ft2: sa_upwind_ft2,
-        bruceNumber: bruceNumber,
-        kelsallIndex: kelsallIndex,
-        saDispRatio: saDispRatio,
-        dispLengthRatio: dispLengthRatio,
-        estimatedBoatSpeed: estimatedBoatSpeed,
-        sailPerformancePercent: sailPerformancePercent,
-        hullSpeed: hullSpeed,
-        beamLengthRatio: beamLengthRatio,
-        bridgedeckRatio: bridgedeckRatio
-      },
-      indicators: indicators
-    };
-  },
 
   scaleToBar(val, min, max) {
     if (val <= min) return 5;
