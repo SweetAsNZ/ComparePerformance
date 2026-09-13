@@ -458,43 +458,12 @@
 
   function normalizeBoatImage(imageUrl, boatIndex = 0) {
     const realBoatPhotos = [
-      'https://images.pexels.com/photos/163236/luxury-yacht-boat-speed-water-163236.jpeg?auto=compress&cs=tinysrgb&w=1600',
-      'https://images.pexels.com/photos/128746/pexels-photo-128746.jpeg?auto=compress&cs=tinysrgb&w=1600',
-      'https://images.pexels.com/photos/1001682/pexels-photo-1001682.jpeg?auto=compress&cs=tinysrgb&w=1600',
-      'https://images.pexels.com/photos/1545743/pexels-photo-1545743.jpeg?auto=compress&cs=tinysrgb&w=1600',
-      'https://images.pexels.com/photos/208260/pexels-photo-208260.jpeg?auto=compress&cs=tinysrgb&w=1600',
-      'https://images.pexels.com/photos/2199293/pexels-photo-2199293.jpeg?auto=compress&cs=tinysrgb&w=1600'
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Catamaran%20at%20Straits%20Quay%2C%20Georgetown%2C%20Pulau%20Pinang%2C%20Malaysia..jpg',
+      'https://commons.wikimedia.org/wiki/Special:FilePath/The%20Spirit%20of%20Dallas%20Catamaran.jpg',
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Brady%2045%27%20strip-built%20catamaran%20with%20fractional%20Bermuda%20rig.jpg'
     ];
 
-    if (!imageUrl) {
-      return realBoatPhotos[boatIndex % realBoatPhotos.length];
-    }
-
-    const candidate = imageUrl.toLowerCase();
-    const badPatterns = [
-      'images.unsplash.com',
-      'unsplash',
-      'girl',
-      'woman',
-      'ketch',
-      'fish',
-      'photo-1506744038136-46273834b3fb',
-      'photo-1540946485063-a40da27545f8',
-      'photo-1500917293891-ef795e70e1f6',
-      'photo-1569263979104-865ab7cd8d13',
-      'photo-1544551763-77ef2d0cfc6c',
-      'photo-1516117172878-fd2c41f4a759',
-      'photo-1544551763-46a013bb70d5',
-      'photo-1507525428034-b723cf961d3e',
-      'photo-1510525009512-ad7fc13eefab',
-      'photo-1559136555-9303baea8ebd'
-    ];
-
-    if (badPatterns.some(pattern => candidate.includes(pattern))) {
-      return realBoatPhotos[boatIndex % realBoatPhotos.length];
-    }
-
-    return imageUrl;
+    return realBoatPhotos[boatIndex % realBoatPhotos.length];
   }
 
   /**
@@ -530,7 +499,7 @@
       card.className = `boat-hero-card boat${bIdx}`;
       card.innerHTML = `
         <div class="boat-hero-img-wrap">
-          <img src="${heroImage}" alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.onerror=null; this.src='https://images.pexels.com/photos/2199293/pexels-photo-2199293.jpeg?auto=compress&cs=tinysrgb&w=1600'" />
+          <img src="${heroImage}" alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.onerror=null; this.src='https://commons.wikimedia.org/wiki/Special:FilePath/Catamaran%20at%20Straits%20Quay%2C%20Georgetown%2C%20Pulau%20Pinang%2C%20Malaysia..jpg'" />
           <span class="boat-category-badge">${boat.category}</span>
         </div>
         <div class="boat-hero-body">
@@ -632,10 +601,9 @@
 
             <div class="zone-meter">
               <div class="zone-bar-track">
-                <div class="zone-segment slow" title="Slow"></div>
-                <div class="zone-segment cruiser" title="Cruiser"></div>
-                <div class="zone-segment performance" title="Performance"></div>
-                <div class="zone-segment racer" title="Racer"></div>
+                ${ind.zones.map((zone, zoneIndex) => `
+                  <div class="zone-segment ${['slow', 'cruiser', 'performance', 'racer'][zoneIndex]}" title="${zone.name}" style="flex: ${zone.max - zone.min} 0 0;"></div>
+                `).join('')}
                 <div class="zone-marker-pin" style="left: ${ind.barPercent}%" title="${ind.value} ${ind.unit}"></div>
               </div>
               <div class="zone-labels">

@@ -108,10 +108,10 @@ const NAVAL_MATH = {
         category: this.classifyBoatSpeed(maxPolar.maxSpeed),
         barPercent: this.scaleToBar(maxPolar.maxSpeed, 9.0, 26.0),
         zones: [
-          { name: "Slow", min: 9.0, max: 12.0 },
-          { name: "Cruiser", min: 12.0, max: 15.0 },
-          { name: "Performance", min: 15.0, max: 19.5 },
-          { name: "Racer", min: 19.5, max: 26.0 }
+          { name: "Slow", min: 9.0, max: 9.8 },
+          { name: "Cruiser", min: 9.8, max: 11.6 },
+          { name: "Performance", min: 11.6, max: 14.2 },
+          { name: "Racer", min: 14.2, max: 26.0 }
         ]
       },
       bruceNumber: {
