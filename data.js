@@ -445,7 +445,7 @@ const CATAMARAN_DATABASE = [
       genoa_area_m2: 59.0,
       gennaker_code0_m2: 130.0,
       mast_clearance_m: 25.10,
-      bridgedeck_clearance_m: 1.66,
+      bridgedeck_clearance_m: 0.86,
       fuel_capacity_l: 900,
       water_capacity_l: 900,
       cabins: "4, 5 or 6",

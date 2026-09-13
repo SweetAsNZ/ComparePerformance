@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Catamarans Speed Graph | ComparePerformance</title>
+  <meta name="description" content="Rank every catalogued catamaran by predicted polar speed at a selectable true wind speed and true wind angle.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="all-catamarans.css">
+</head>
+<body>
+  <header class="fleet-header">
+    <div>
+      <a class="back-link" href="index.html">← Three-Boat Comparator</a>
+      <p class="eyebrow">Fleet performance view</p>
+      <h1>All Catamarans Speed Graph</h1>
+      <p class="lede">Rank every catamaran in the catalogue at one selectable true wind speed and angle.</p>
+    </div>
+    <div class="condition-readout" aria-live="polite">
+      <span>Current condition</span>
+      <strong id="conditionReadout">16 kn TWS · 90° TWA</strong>
+    </div>
+  </header>
+
+  <main class="fleet-main">
+    <section class="control-panel" aria-labelledby="controlsTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">VPP condition</p>
+          <h2 id="controlsTitle">Set the wind and course</h2>
+        </div>
+        <button id="resetBtn" class="reset-button" type="button">Reset</button>
+      </div>
+      <div class="controls-grid">
+        <label class="control-field" for="twsInput">
+          <span class="control-label"><span>True wind speed</span><output id="twsValue">16 kn</output></span>
+          <input id="twsInput" type="range" min="1" max="80" step="1" value="16">
+          <span class="range-hint"><span>1 kn</span><span>80 kn</span></span>
+        </label>
+        <label class="control-field" for="twaInput">
+          <span class="control-label"><span>True wind angle</span><output id="twaValue">90°</output></span>
+          <input id="twaInput" type="range" min="25" max="180" step="1" value="90">
+          <span class="range-hint"><span>25° upwind</span><span>180° downwind</span></span>
+        </label>
+      </div>
+      <div class="angle-presets" aria-label="True wind angle presets">
+        <span>Quick angles</span>
+        <button type="button" data-twa="45">45°</button>
+        <button type="button" data-twa="60">60°</button>
+        <button type="button" data-twa="90">90°</button>
+        <button type="button" data-twa="120">120°</button>
+        <button type="button" data-twa="150">150°</button>
+        <button type="button" data-twa="180">180°</button>
+      </div>
+    </section>
+
+    <section class="graph-section" aria-labelledby="graphTitle">
+      <div class="graph-heading">
+        <div>
+          <p class="eyebrow">Predicted boat speed</p>
+          <h2 id="graphTitle">Fleet ranking</h2>
+        </div>
+        <span id="fleetCount" class="fleet-count"></span>
+      </div>
+      <div id="graph" class="speed-graph" role="img" aria-label="Ranked catamaran speed graph"></div>
+    </section>
+
+    <section class="method-note">
+      <strong>How this is calculated</strong>
+      <span>Full-sail base polar interpolation from the catalogue VPP curves. Values between stored wind speeds and angles are linearly interpolated; winds above 25 knots use the existing high-wind extrapolation.</span>
+    </section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="calculations.js"></script>
+  <script src="all-catamarans.js"></script>
+</body>
+</html>
