@@ -880,14 +880,13 @@
     speedRings.forEach(spd => {
       const r = (spd / maxSpeedScale) * maxRadius;
       ctx.beginPath();
-      ctx.arc(centerX, centerY, r, Math.PI, 2 * Math.PI, false);
+      ctx.arc(centerX, centerY, r, -Math.PI / 2, Math.PI / 2, false);
       ctx.strokeStyle = spd % 10 === 0 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.12)';
       ctx.lineWidth = spd % 10 === 0 ? 1.5 : 1;
       ctx.setLineDash(spd % 10 === 0 ? [] : [4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      drawPillBadge(ctx, centerX - r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
       drawPillBadge(ctx, centerX + r, centerY, `${spd} kn`, '#0f172a', '#38bdf8', '#0284c7');
     });
 
