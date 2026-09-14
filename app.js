@@ -824,13 +824,13 @@
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const width = rect.width;
     const height = rect.height;
     const centerX = width / 2;
-    const centerY = height * 0.90;
-    const maxRadius = Math.min(width * 0.43, height * 0.80);
+    const centerY = height * 0.72;
+    const maxRadius = Math.min(width * 0.42, (height - 70) * 0.78);
     const maxSpeedScale = state.polarMaxSpeed || 25;
 
     // Update Polar Legend Labels with exact model names and size
@@ -979,7 +979,7 @@
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const width = rect.width;
     const height = rect.height;
@@ -1118,7 +1118,7 @@
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const width = rect.width;
     const height = rect.height;
