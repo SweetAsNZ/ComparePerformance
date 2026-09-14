@@ -212,6 +212,19 @@
                 <button type="button" class="tws-pill" data-tws="25">25 kn</button>
                 <button type="button" class="tws-pill" data-tws="all">All TWS</button>
               </div>
+
+              <button type="button" class="sails-toggle-btn is-hidden" id="sailsToggleBtn" title="Show sail plan options for the single selected boat">⛵ Sails</button>
+            </div>
+
+            <div class="sail-options-panel is-hidden" id="sailOptionsPanel">
+              <div class="sail-options-header">
+                <span>Sail Plans (select one or more to compare on this boat)</span>
+                <label class="sail-option-chip sail-option-all">
+                  <input type="checkbox" id="sailPlanAllToggle" />
+                  All Sails
+                </label>
+              </div>
+              <div class="sail-options-grid" id="sailPlanOptionsContainer"></div>
             </div>
 
             <canvas id="polarCanvas" class="chart-canvas"></canvas>

@@ -5,6 +5,20 @@
 (function () {
   'use strict';
 
+  // Sail plan presets available in single-boat mode: 3 reefs each for main & genoa, plus reaching/running sails
+  const SAIL_PLANS = [
+    { id: 'full', label: 'Full Main + Genoa', mainReef: 'full', headsailType: 'genoa', headsailReef: 1.0, color: '#06b6d4' },
+    { id: 'mainReef1', label: 'Main Reef 1', mainReef: 'reef1', headsailType: 'genoa', headsailReef: 1.0, color: '#22d3ee' },
+    { id: 'mainReef2', label: 'Main Reef 2', mainReef: 'reef2', headsailType: 'genoa', headsailReef: 1.0, color: '#0ea5e9' },
+    { id: 'mainReef3', label: 'Main Reef 3', mainReef: 'reef3', headsailType: 'genoa', headsailReef: 1.0, color: '#0284c7' },
+    { id: 'genoaReef1', label: 'Genoa Reef 1', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.75, color: '#f59e0b' },
+    { id: 'genoaReef2', label: 'Genoa Reef 2', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.5, color: '#f97316' },
+    { id: 'genoaReef3', label: 'Genoa Reef 3', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.25, color: '#ea580c' },
+    { id: 'code0', label: 'Code Zero', mainReef: 'full', headsailType: 'code0', headsailReef: 1.0, color: '#a855f7' },
+    { id: 'coded', label: 'Code D', mainReef: 'full', headsailType: 'coded', headsailReef: 1.0, color: '#ec4899' },
+    { id: 'parasailor', label: 'Parasailor', mainReef: 'full', headsailType: 'parasailor', headsailReef: 1.0, color: '#10b981' }
+  ];
+
   // Application State
   const state = {
     boats: [null, null, null],
@@ -14,6 +28,8 @@
     selectedPolarTws: 16, // 8, 12, 16, 20, 25, or 'all'
     polarMaxSpeed: 25, // Zoomable polar speed scale (12 to 50 kn)
     radarZoom: 1.0, // Zoomable radar scale (0.6 to 1.8)
+    sailsPanelOpen: false,
+    selectedSailPlans: ['full'], // active SAIL_PLANS ids, only used when exactly one boat is visible
     sim: {
       tws: 16,
       twa: 90,
@@ -47,7 +63,11 @@
     pointOfSailBadge: document.getElementById('pointOfSailBadge'),
     twsPillsContainer: document.getElementById('twsPillsContainer'),
     polarTablesContainer: document.getElementById('polarTablesContainer'),
-    
+    sailsToggleBtn: document.getElementById('sailsToggleBtn'),
+    sailOptionsPanel: document.getElementById('sailOptionsPanel'),
+    sailPlanOptionsContainer: document.getElementById('sailPlanOptionsContainer'),
+    sailPlanAllToggle: document.getElementById('sailPlanAllToggle'),
+
     // Zoom Controls
     polarZoomInBtn: document.getElementById('polarZoomInBtn'),
     polarZoomOutBtn: document.getElementById('polarZoomOutBtn'),
@@ -361,6 +381,35 @@
         renderPolarChart();
       }
     });
+
+    // Sails Toggle (only meaningful when a single boat is visible)
+    if (elements.sailsToggleBtn) {
+      elements.sailsToggleBtn.addEventListener('click', () => {
+        state.sailsPanelOpen = !state.sailsPanelOpen;
+        renderPolarChart();
+      });
+    }
+
+    if (elements.sailPlanAllToggle) {
+      elements.sailPlanAllToggle.addEventListener('change', (e) => {
+        state.selectedSailPlans = e.target.checked ? SAIL_PLANS.map(p => p.id) : [];
+        renderPolarChart();
+      });
+    }
+
+    if (elements.sailPlanOptionsContainer) {
+      elements.sailPlanOptionsContainer.addEventListener('change', (e) => {
+        if (!e.target.matches('input[type="checkbox"][data-sail-plan]')) return;
+        const planId = e.target.getAttribute('data-sail-plan');
+        const idx = state.selectedSailPlans.indexOf(planId);
+        if (e.target.checked && idx === -1) {
+          state.selectedSailPlans.push(planId);
+        } else if (!e.target.checked && idx !== -1) {
+          state.selectedSailPlans.splice(idx, 1);
+        }
+        renderPolarChart();
+      });
+    }
 
     // VPP Simulator Sliders & Controls
     elements.simTwsInput.addEventListener('input', (e) => {
@@ -870,6 +919,14 @@
 
     ctx.clearRect(0, 0, width, height);
 
+    // Sails feature is only available when exactly one boat is visible
+    const singleBoatIdx = getSingleVisibleBoatIndex();
+    updateSailsUI(singleBoatIdx);
+    const sailsModeActive = singleBoatIdx !== -1 && state.sailsPanelOpen;
+    const activeSailPlans = sailsModeActive
+      ? SAIL_PLANS.filter(p => state.selectedSailPlans.includes(p.id))
+      : [];
+
     // 1. Draw Background Polar Grid Rings based on current zoom scale
     const ringStep = maxSpeedScale <= 16 ? 2 : (maxSpeedScale <= 30 ? 5 : 10);
     const speedRings = [];
@@ -916,69 +973,195 @@
     const colors = ['#06b6d4', '#f59e0b', '#ec4899'];
     const pointAngles = [35, 45, 60, 90, 110, 135, 150, 180];
 
-    state.boats.forEach((boat, bIdx) => {
-      if (!boat || !state.visibleBoats[bIdx]) return;
-      const baseColor = colors[bIdx];
+    function drawCurve(getSpeedForAngle, baseColor, lineWidth, fillCurve) {
+      ctx.beginPath();
+      const points = [];
 
-      twsList.forEach(tws => {
-        ctx.beginPath();
-        const points = [];
-
-        pointAngles.forEach((ang) => {
-          const spd = NAVAL_MATH.predictBoatSpeed(boat, tws, ang);
-          const r = (spd / maxSpeedScale) * maxRadius;
-          const rad = (ang - 90) * (Math.PI / 180);
-          const px = centerX + r * Math.cos(rad);
-          const py = centerY + r * Math.sin(rad);
-          points.push({ x: px, y: py, spd: spd, ang: ang });
-        });
-
-        if (points.length > 0) {
-          ctx.moveTo(points[0].x, points[0].y);
-          for (let i = 1; i < points.length; i++) {
-            const xc = (points[i - 1].x + points[i].x) / 2;
-            const yc = (points[i - 1].y + points[i].y) / 2;
-            ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
-          }
-          ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-
-          ctx.strokeStyle = baseColor;
-          ctx.lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 2.0 : 3.5;
-          ctx.stroke();
-
-          if (state.selectedPolarTws !== 'all') {
-            ctx.lineTo(centerX, centerY);
-            ctx.closePath();
-            ctx.fillStyle = bIdx === 0 ? 'rgba(6, 182, 212, 0.12)' : (bIdx === 1 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(236, 72, 153, 0.12)');
-            ctx.fill();
-
-            points.forEach(pt => {
-              ctx.beginPath();
-              ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
-              ctx.fillStyle = baseColor;
-              ctx.fill();
-              ctx.strokeStyle = '#0f172a';
-              ctx.lineWidth = 1.5;
-              ctx.stroke();
-            });
-          }
-        }
+      pointAngles.forEach((ang) => {
+        const spd = getSpeedForAngle(ang);
+        const r = (spd / maxSpeedScale) * maxRadius;
+        const rad = (ang - 90) * (Math.PI / 180);
+        const px = centerX + r * Math.cos(rad);
+        const py = centerY + r * Math.sin(rad);
+        points.push({ x: px, y: py, spd: spd, ang: ang });
       });
-    });
+
+      if (points.length === 0) return;
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        const xc = (points[i - 1].x + points[i].x) / 2;
+        const yc = (points[i - 1].y + points[i].y) / 2;
+        ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      if (fillCurve) {
+        ctx.lineTo(centerX, centerY);
+        ctx.closePath();
+        ctx.fillStyle = hexToRgba(baseColor, 0.12);
+        ctx.fill();
+        points.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = baseColor;
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+      }
+    }
+
+    if (sailsModeActive && activeSailPlans.length > 0) {
+      // Single-boat sail plan comparison: one curve per selected sail plan at the active TWS
+      const boat = state.boats[singleBoatIdx];
+      const sailTws = state.selectedPolarTws === 'all' ? 16 : state.selectedPolarTws;
+
+      activeSailPlans.forEach((plan) => {
+        const getSpeed = (ang) => NAVAL_MATH.simulateSailPerformance(boat, {
+          tws: sailTws,
+          twa: ang,
+          mainReef: plan.mainReef,
+          headsailType: plan.headsailType,
+          headsailReef: plan.headsailReef
+        }).boatSpeed;
+        drawCurve(getSpeed, plan.color, 3.0, true);
+      });
+    } else {
+      state.boats.forEach((boat, bIdx) => {
+        if (!boat || !state.visibleBoats[bIdx]) return;
+        const baseColor = colors[bIdx];
+
+        twsList.forEach(tws => {
+          const getSpeed = (ang) => NAVAL_MATH.predictBoatSpeed(boat, tws, ang);
+          const lineWidth = (state.selectedPolarTws === 'all' && tws !== 16) ? 2.0 : 3.5;
+          drawCurve(getSpeed, baseColor, lineWidth, state.selectedPolarTws !== 'all');
+        });
+      });
+    }
 
     renderPolarTables();
   }
 
   /**
-   * Render numeric polar speed tables (TWA rows x TWS columns) for each visible boat
+   * Determine the boat index when exactly one selected boat is currently visible, else -1
+   */
+  function getSingleVisibleBoatIndex() {
+    const visibleIndices = state.boats
+      .map((boat, idx) => (boat && state.visibleBoats[idx] ? idx : -1))
+      .filter(idx => idx !== -1);
+    return visibleIndices.length === 1 ? visibleIndices[0] : -1;
+  }
+
+  /**
+   * Show/hide the Sails button & options panel, and keep the sail plan checkboxes in sync
+   */
+  function updateSailsUI(singleBoatIdx) {
+    if (!elements.sailsToggleBtn) return;
+
+    if (singleBoatIdx === -1) {
+      elements.sailsToggleBtn.classList.add('is-hidden');
+      if (elements.sailOptionsPanel) elements.sailOptionsPanel.classList.add('is-hidden');
+      state.sailsPanelOpen = false;
+      return;
+    }
+
+    elements.sailsToggleBtn.classList.remove('is-hidden');
+    elements.sailsToggleBtn.classList.toggle('active', state.sailsPanelOpen);
+
+    if (elements.sailOptionsPanel) {
+      elements.sailOptionsPanel.classList.toggle('is-hidden', !state.sailsPanelOpen);
+    }
+
+    if (state.sailsPanelOpen) {
+      renderSailPlanOptions();
+    }
+  }
+
+  /**
+   * Build the sail plan checkbox chips inside the sails options panel
+   */
+  function renderSailPlanOptions() {
+    if (!elements.sailPlanOptionsContainer) return;
+
+    elements.sailPlanOptionsContainer.innerHTML = SAIL_PLANS.map((plan) => {
+      const checked = state.selectedSailPlans.includes(plan.id);
+      return `
+        <label class="sail-option-chip${checked ? ' checked' : ''}">
+          <input type="checkbox" data-sail-plan="${plan.id}" ${checked ? 'checked' : ''} />
+          <span class="sail-swatch" style="background:${plan.color}"></span>
+          ${plan.label}
+        </label>`;
+    }).join('');
+
+    if (elements.sailPlanAllToggle) {
+      elements.sailPlanAllToggle.checked = state.selectedSailPlans.length === SAIL_PLANS.length;
+    }
+
+    elements.sailPlanOptionsContainer.querySelectorAll('.sail-option-chip').forEach((chip) => {
+      const input = chip.querySelector('input');
+      chip.classList.toggle('checked', input.checked);
+    });
+  }
+
+
+
+  /**
+   * Render numeric polar speed tables (TWA rows x TWS columns) for each visible boat,
+   * or one table per selected sail plan when sails mode is active for a single boat
    */
   function renderPolarTables() {
     if (!elements.polarTablesContainer) return;
     const twsCols = [8, 12, 16, 20, 25];
     const tableAngles = [35, 45, 60, 90, 110, 135, 150, 180];
-    const colors = ['var(--boat1-color)', 'var(--boat2-color)', 'var(--boat3-color)'];
+
+    const singleBoatIdx = getSingleVisibleBoatIndex();
+    const sailsModeActive = singleBoatIdx !== -1 && state.sailsPanelOpen;
+    const activeSailPlans = sailsModeActive
+      ? SAIL_PLANS.filter(p => state.selectedSailPlans.includes(p.id))
+      : [];
 
     let html = '';
+
+    if (sailsModeActive && activeSailPlans.length > 0) {
+      const boat = state.boats[singleBoatIdx];
+
+      activeSailPlans.forEach((plan) => {
+        const rows = tableAngles.map((ang) => {
+          const results = twsCols.map((tws) => NAVAL_MATH.simulateSailPerformance(boat, {
+            tws, twa: ang, mainReef: plan.mainReef, headsailType: plan.headsailType, headsailReef: plan.headsailReef
+          }));
+          const maxSpeed = Math.max(...results.map(r => r.boatSpeed));
+          const cells = results.map((r, i) => {
+            const tws = twsCols[i];
+            const isActive = state.selectedPolarTws !== 'all' && Number(state.selectedPolarTws) === tws;
+            const isBest = r.boatSpeed === maxSpeed;
+            const classes = [isActive ? 'tws-active' : '', isBest ? 'best-speed' : ''].filter(Boolean).join(' ');
+            return `<td class="${classes}">${r.boatSpeed.toFixed(1)}<span class="awa-val">${r.awa}° AWA</span></td>`;
+          }).join('');
+          return `<tr><td class="angle-col">${ang}°</td>${cells}</tr>`;
+        }).join('');
+
+        html += `
+          <div class="polar-table-card">
+            <h3><span class="sail-swatch" style="background:${plan.color}"></span>${boat.name} — ${plan.label} (kn) / AWA</h3>
+            <table>
+              <thead>
+                <tr><th class="angle-col">TWA \\ TWS</th>${twsCols.map(t => `<th>${t} kn</th>`).join('')}</tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      });
+
+      elements.polarTablesContainer.innerHTML = html || '<p class="section-subtitle">Select at least one sail plan above to view its polar speed table.</p>';
+      return;
+    }
+
     state.boats.forEach((boat, bIdx) => {
       if (!boat || !state.visibleBoats[bIdx]) return;
 
@@ -1124,6 +1307,14 @@
   /**
    * Helper to draw clean, readable pill badges with background containers
    */
+  function hexToRgba(hex, alpha) {
+    const parsed = hex.replace('#', '');
+    const r = parseInt(parsed.substring(0, 2), 16);
+    const g = parseInt(parsed.substring(2, 4), 16);
+    const b = parseInt(parsed.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
   function drawPillBadge(ctx, x, y, text, bgColor, textColor, borderColor, isBold) {
     ctx.font = isBold ? 'bold 11px Inter, sans-serif' : '600 10.5px Inter, sans-serif';
     const textWidth = ctx.measureText(text).width;

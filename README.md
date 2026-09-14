@@ -32,6 +32,10 @@ Compare specific models directly via URL parameters, e.g.:
 - **Metric & Imperial Toggle**: Instant unit switching.
 - **URL Query Deep Linking & Sharing**: Share exact 3-boat comparisons via URL (e.g. `?key1=Fountaine+Pajot+45+Elba&key2=Fountaine+Pajot+47+Tanna&key3=Fountaine+Pajot+51+Aura`).
 
+## To Do
+
+[ ] Add sea state drop down with wave height, period and direction and change the boat speed based on the sea state in the polars table and graph.
+
 ## How to Run
 
 Simply open [index.html](index.html) in any modern web browser (Edge, Chrome, Firefox, Safari) or serve with any static web server:
