@@ -46,6 +46,7 @@
     compassCanvas: document.getElementById('compassCanvas'),
     pointOfSailBadge: document.getElementById('pointOfSailBadge'),
     twsPillsContainer: document.getElementById('twsPillsContainer'),
+    polarTablesContainer: document.getElementById('polarTablesContainer'),
     
     // Zoom Controls
     polarZoomInBtn: document.getElementById('polarZoomInBtn'),
@@ -965,6 +966,49 @@
         }
       });
     });
+
+    renderPolarTables();
+  }
+
+  /**
+   * Render numeric polar speed tables (TWA rows x TWS columns) for each visible boat
+   */
+  function renderPolarTables() {
+    if (!elements.polarTablesContainer) return;
+    const twsCols = [8, 12, 16, 20, 25];
+    const tableAngles = [35, 45, 60, 90, 110, 135, 150, 180];
+    const colors = ['var(--boat1-color)', 'var(--boat2-color)', 'var(--boat3-color)'];
+
+    let html = '';
+    state.boats.forEach((boat, bIdx) => {
+      if (!boat || !state.visibleBoats[bIdx]) return;
+
+      const rows = tableAngles.map((ang) => {
+        const speeds = twsCols.map((tws) => NAVAL_MATH.predictBoatSpeed(boat, tws, ang));
+        const maxSpeed = Math.max(...speeds);
+        const cells = speeds.map((spd, i) => {
+          const tws = twsCols[i];
+          const isActive = state.selectedPolarTws !== 'all' && Number(state.selectedPolarTws) === tws;
+          const isBest = spd === maxSpeed;
+          const classes = [isActive ? 'tws-active' : '', isBest ? 'best-speed' : ''].filter(Boolean).join(' ');
+          return `<td class="${classes}">${spd.toFixed(1)}</td>`;
+        }).join('');
+        return `<tr><td class="angle-col">${ang}°</td>${cells}</tr>`;
+      }).join('');
+
+      html += `
+        <div class="polar-table-card">
+          <h3><span class="legend-dot boat${bIdx + 1}"></span>${boat.name} — Boat Speed (kn)</h3>
+          <table>
+            <thead>
+              <tr><th class="angle-col">TWA \\ TWS</th>${twsCols.map(t => `<th>${t} kn</th>`).join('')}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    });
+
+    elements.polarTablesContainer.innerHTML = html || '<p class="section-subtitle">Select and show at least one boat to view its polar speed table.</p>';
   }
 
   /**
