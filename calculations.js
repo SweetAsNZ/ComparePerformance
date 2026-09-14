@@ -618,5 +618,19 @@ const NAVAL_MATH = {
    */
   predictBoatSpeed(boat, tws, twa) {
     return Math.round(this.predictBasePolarSpeed(boat, tws, twa) * 10) / 10;
+  },
+
+  /**
+   * Predict apparent wind speed & angle for standard polar chart (no custom sim config)
+   */
+  predictApparentWind(boat, tws, twa) {
+    const boatSpeed = this.predictBoatSpeed(boat, tws, twa);
+    const twaRad = (twa * Math.PI) / 180.0;
+    const vx = tws * Math.cos(twaRad) + boatSpeed;
+    const vy = tws * Math.sin(twaRad);
+    const aws = Math.round(Math.sqrt(vx * vx + vy * vy) * 10) / 10;
+    let awa = Math.round((Math.atan2(vy, vx) * 180.0) / Math.PI);
+    if (awa < 0) awa += 360;
+    return { awa, aws };
   }
 };

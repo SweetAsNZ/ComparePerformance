@@ -991,14 +991,15 @@
           const isActive = state.selectedPolarTws !== 'all' && Number(state.selectedPolarTws) === tws;
           const isBest = spd === maxSpeed;
           const classes = [isActive ? 'tws-active' : '', isBest ? 'best-speed' : ''].filter(Boolean).join(' ');
-          return `<td class="${classes}">${spd.toFixed(1)}</td>`;
+          const awa = NAVAL_MATH.predictApparentWind(boat, tws, ang).awa;
+          return `<td class="${classes}">${spd.toFixed(1)}<span class="awa-val">${awa}° AWA</span></td>`;
         }).join('');
         return `<tr><td class="angle-col">${ang}°</td>${cells}</tr>`;
       }).join('');
 
       html += `
         <div class="polar-table-card">
-          <h3><span class="legend-dot boat${bIdx + 1}"></span>${boat.name} — Boat Speed (kn)</h3>
+          <h3><span class="legend-dot boat${bIdx + 1}"></span>${boat.name} — Boat Speed (kn) / AWA</h3>
           <table>
             <thead>
               <tr><th class="angle-col">TWA \\ TWS</th>${twsCols.map(t => `<th>${t} kn</th>`).join('')}</tr>

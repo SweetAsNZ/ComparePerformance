@@ -886,9 +886,9 @@ body {
 }
 
 .polar-table-card th, .polar-table-card td {
-  padding: 0.4rem 0.55rem;
+  padding: 0.3rem 0.35rem;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   white-space: nowrap;
 }
 
@@ -896,8 +896,8 @@ body {
   color: var(--text-secondary);
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
 }
 
 .polar-table-card td.angle-col, .polar-table-card th.angle-col {
@@ -915,6 +915,14 @@ body {
 .polar-table-card td.best-speed {
   color: var(--accent-emerald);
   font-weight: 800;
+}
+
+.polar-table-card .awa-val {
+  display: block;
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 0.05rem;
 }
 
 .footer-source-note {
