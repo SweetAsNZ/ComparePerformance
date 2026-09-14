@@ -40,6 +40,7 @@
     specsBoatHeader2: document.getElementById('specsBoatHeader2'),
     specsBoatHeader3: document.getElementById('specsBoatHeader3'),
     polarLegendItems: document.querySelectorAll('.legend-item'),
+    polarToggleButtons: document.querySelectorAll('.boat-toggle-btn'),
     polarCanvas: document.getElementById('polarCanvas'),
     radarCanvas: document.getElementById('radarCanvas'),
     compassCanvas: document.getElementById('compassCanvas'),
@@ -175,22 +176,74 @@
   /**
    * Setup Event Listeners
    */
-  function setupEventListeners() {
-    elements.polarLegendItems.forEach((legendItem, index) => {
-      legendItem.addEventListener('click', () => {
-        if (!state.boats[index]) return;
-        state.visibleBoats[index] = !state.visibleBoats[index];
-        legendItem.classList.toggle('muted', !state.visibleBoats[index]);
-        renderPolarChart();
+  function ensurePolarToggleControls() {
+    if (!document.querySelector('.boat-toggle-row')) {
+      const row = document.createElement('div');
+      row.className = 'boat-toggle-row';
+      row.setAttribute('aria-label', 'Boat visibility controls');
+
+      const boatLabels = ['Boat 1', 'Boat 2', 'Boat 3'];
+      boatLabels.forEach((label, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'boat-toggle-btn active';
+        button.dataset.boatToggle = String(index);
+        button.setAttribute('aria-pressed', 'true');
+        button.innerHTML = `<span class="legend-dot boat${index + 1}"></span>${label}`;
+        row.appendChild(button);
       });
 
+      const target = document.querySelector('.chart-legend') || document.querySelector('.polar-controls-bar');
+      if (target && target.parentNode) {
+        target.parentNode.insertBefore(row, target.nextSibling);
+      }
+    }
+
+    elements.polarToggleButtons = document.querySelectorAll('.boat-toggle-btn');
+    elements.polarLegendItems = document.querySelectorAll('.legend-item');
+  }
+
+  function toggleBoatVisibility(index) {
+    if (!state.boats[index]) return;
+    state.visibleBoats[index] = !state.visibleBoats[index];
+
+    const legendItem = elements.polarLegendItems[index];
+    if (legendItem) {
+      legendItem.classList.toggle('muted', !state.visibleBoats[index]);
+    }
+
+    const toggleButton = document.querySelector(`.boat-toggle-btn[data-boat-toggle="${index}"]`);
+    if (toggleButton) {
+      toggleButton.classList.toggle('active', state.visibleBoats[index]);
+      toggleButton.setAttribute('aria-pressed', String(state.visibleBoats[index]));
+      toggleButton.innerHTML = `<span class="legend-dot boat${index + 1}"></span>${state.visibleBoats[index] ? 'Hide' : 'Show'} ${state.boats[index].name}`;
+    }
+
+    renderPolarChart();
+  }
+
+  function bindPolarToggleButtons() {
+    document.querySelectorAll('.boat-toggle-btn').forEach((button) => {
+      const index = Number(button.dataset.boatToggle);
+      button.setAttribute('aria-pressed', String(state.visibleBoats[index]));
+      button.onclick = () => toggleBoatVisibility(index);
+    });
+  }
+
+  function setupEventListeners() {
+    ensurePolarToggleControls();
+
+    elements.polarLegendItems.forEach((legendItem, index) => {
+      legendItem.addEventListener('click', () => toggleBoatVisibility(index));
       legendItem.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          legendItem.click();
+          toggleBoatVisibility(index);
         }
       });
     });
+
+    bindPolarToggleButtons();
 
     elements.select1.addEventListener('change', (e) => {
       state.boats[0] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
@@ -786,6 +839,23 @@
       elements.polarLegendText1.textContent = state.boats[0] ? `${state.boats[0].name} (${state.boats[0].specs.loa_m}m / ${Math.round(state.boats[0].specs.loa_m * 3.28)}ft)${hidden}` : 'Boat 1';
       elements.polarLegendText1.parentElement.classList.toggle('muted', !!(state.boats[0] && !state.visibleBoats[0]));
     }
+
+    elements.polarToggleButtons = document.querySelectorAll('.boat-toggle-btn');
+    elements.polarToggleButtons.forEach((button) => {
+      const index = Number(button.dataset.boatToggle);
+      if (!state.boats[index]) {
+        button.classList.add('disabled');
+        button.disabled = true;
+        return;
+      }
+      button.disabled = false;
+      button.classList.remove('disabled');
+      button.classList.toggle('active', state.visibleBoats[index]);
+      button.setAttribute('aria-pressed', String(state.visibleBoats[index]));
+      const label = state.visibleBoats[index] ? 'Hide' : 'Show';
+      button.innerHTML = `<span class="legend-dot boat${index + 1}"></span>${label} ${state.boats[index].name}`;
+      button.onclick = () => toggleBoatVisibility(index);
+    });
     if (elements.polarLegendText2) {
       const hidden = state.boats[1] && !state.visibleBoats[1] ? ' (hidden)' : '';
       elements.polarLegendText2.textContent = state.boats[1] ? `${state.boats[1].name} (${state.boats[1].specs.loa_m}m / ${Math.round(state.boats[1].specs.loa_m * 3.28)}ft)${hidden}` : 'Boat 2';

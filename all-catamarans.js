@@ -20,24 +20,25 @@
   function classifySpeed(boat, speed) {
     const boatType = (boat && boat.category) ? boat.category.toLowerCase() : '';
     const isCruisingDesign = /(cruising|luxury|charter|bluewater|fun-sailer)/i.test(boatType);
-    const isPerformanceDesign = /(performance|racer|high-performance|ultra high-performance|fast cruising)/i.test(boatType);
+    const isPerformanceDesign = /(performance|racer|race|sport|high-performance|ultra high-performance|fast cruising)/i.test(boatType);
 
-    if (speed < 9.8) return 'Slow';
+    if (speed < 8.5) return 'Slow';
 
     if (isCruisingDesign) {
-      if (speed < 10.5) return 'Slow';
-      if (speed < 12.8) return 'Cruiser';
+      if (speed < 10.0) return 'Slow';
+      if (speed < 12.0) return 'Cruiser';
+      if (speed < 14.5) return 'Performance';
       return 'Performance';
     }
 
     if (isPerformanceDesign) {
-      if (speed < 11.8) return 'Performance';
-      if (speed < 14.2) return 'Performance';
+      if (speed < 11.5) return 'Performance';
+      if (speed < 15.5) return 'Performance';
       return 'Racer';
     }
 
-    if (speed < 11.6) return 'Cruiser';
-    if (speed < 14.2) return 'Performance';
+    if (speed < 10.5) return 'Cruiser';
+    if (speed < 14.0) return 'Performance';
     return 'Racer';
   }
 
