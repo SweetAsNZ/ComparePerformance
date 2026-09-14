@@ -776,12 +776,29 @@ body {
   gap: 1rem;
   font-size: 0.8rem;
   font-weight: 600;
+  flex-wrap: wrap;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.legend-item:hover,
+.legend-item:focus-visible {
+  background: rgba(148, 163, 184, 0.12);
+  outline: none;
+}
+
+.legend-item.muted {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 
 .legend-dot {

@@ -8,6 +8,7 @@
   // Application State
   const state = {
     boats: [null, null, null],
+    visibleBoats: [true, true, true],
     unit: 'metric', // 'metric' | 'imperial'
     activeTab: 'indicators',
     selectedPolarTws: 16, // 8, 12, 16, 20, 25, or 'all'
@@ -38,6 +39,7 @@
     specsBoatHeader1: document.getElementById('specsBoatHeader1'),
     specsBoatHeader2: document.getElementById('specsBoatHeader2'),
     specsBoatHeader3: document.getElementById('specsBoatHeader3'),
+    polarLegendItems: document.querySelectorAll('.legend-item'),
     polarCanvas: document.getElementById('polarCanvas'),
     radarCanvas: document.getElementById('radarCanvas'),
     compassCanvas: document.getElementById('compassCanvas'),
@@ -138,6 +140,7 @@
     elements.select2.value = state.boats[1].id;
     elements.select3.value = state.boats[2].id;
 
+    state.visibleBoats = [true, true, true];
     updateUnitButtons();
   }
 
@@ -173,18 +176,37 @@
    * Setup Event Listeners
    */
   function setupEventListeners() {
+    elements.polarLegendItems.forEach((legendItem, index) => {
+      legendItem.addEventListener('click', () => {
+        if (!state.boats[index]) return;
+        state.visibleBoats[index] = !state.visibleBoats[index];
+        legendItem.classList.toggle('muted', !state.visibleBoats[index]);
+        renderPolarChart();
+      });
+
+      legendItem.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          legendItem.click();
+        }
+      });
+    });
+
     elements.select1.addEventListener('change', (e) => {
       state.boats[0] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
+      state.visibleBoats[0] = state.boats[0] ? true : false;
       updateAll();
     });
 
     elements.select2.addEventListener('change', (e) => {
       state.boats[1] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
+      state.visibleBoats[1] = state.boats[1] ? true : false;
       updateAll();
     });
 
     elements.select3.addEventListener('change', (e) => {
       state.boats[2] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
+      state.visibleBoats[2] = state.boats[2] ? true : false;
       updateAll();
     });
 
@@ -760,13 +782,19 @@
 
     // Update Polar Legend Labels with exact model names and size
     if (elements.polarLegendText1) {
-      elements.polarLegendText1.textContent = state.boats[0] ? `${state.boats[0].name} (${state.boats[0].specs.loa_m}m / ${Math.round(state.boats[0].specs.loa_m * 3.28)}ft)` : 'Boat 1';
+      const hidden = state.boats[0] && !state.visibleBoats[0] ? ' (hidden)' : '';
+      elements.polarLegendText1.textContent = state.boats[0] ? `${state.boats[0].name} (${state.boats[0].specs.loa_m}m / ${Math.round(state.boats[0].specs.loa_m * 3.28)}ft)${hidden}` : 'Boat 1';
+      elements.polarLegendText1.parentElement.classList.toggle('muted', !!(state.boats[0] && !state.visibleBoats[0]));
     }
     if (elements.polarLegendText2) {
-      elements.polarLegendText2.textContent = state.boats[1] ? `${state.boats[1].name} (${state.boats[1].specs.loa_m}m / ${Math.round(state.boats[1].specs.loa_m * 3.28)}ft)` : 'Boat 2';
+      const hidden = state.boats[1] && !state.visibleBoats[1] ? ' (hidden)' : '';
+      elements.polarLegendText2.textContent = state.boats[1] ? `${state.boats[1].name} (${state.boats[1].specs.loa_m}m / ${Math.round(state.boats[1].specs.loa_m * 3.28)}ft)${hidden}` : 'Boat 2';
+      elements.polarLegendText2.parentElement.classList.toggle('muted', !!(state.boats[1] && !state.visibleBoats[1]));
     }
     if (elements.polarLegendText3) {
-      elements.polarLegendText3.textContent = state.boats[2] ? `${state.boats[2].name} (${state.boats[2].specs.loa_m}m / ${Math.round(state.boats[2].specs.loa_m * 3.28)}ft)` : 'Boat 3';
+      const hidden = state.boats[2] && !state.visibleBoats[2] ? ' (hidden)' : '';
+      elements.polarLegendText3.textContent = state.boats[2] ? `${state.boats[2].name} (${state.boats[2].specs.loa_m}m / ${Math.round(state.boats[2].specs.loa_m * 3.28)}ft)${hidden}` : 'Boat 3';
+      elements.polarLegendText3.parentElement.classList.toggle('muted', !!(state.boats[2] && !state.visibleBoats[2]));
     }
 
     ctx.clearRect(0, 0, width, height);
@@ -819,7 +847,7 @@
     const pointAngles = [35, 45, 60, 90, 110, 135, 150, 180];
 
     state.boats.forEach((boat, bIdx) => {
-      if (!boat) return;
+      if (!boat || !state.visibleBoats[bIdx]) return;
       const baseColor = colors[bIdx];
 
       twsList.forEach(tws => {
