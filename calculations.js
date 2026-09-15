@@ -286,6 +286,7 @@ const NAVAL_MATH = {
     const hasDaggerboards = boat.keelType.toLowerCase().includes('dagger');
     let bestTwa = hasDaggerboards ? 38 : 46;
     let bestVmg = 0;
+    let bestSpeed = 0;
 
     for (let testTwa = 30; testTwa <= 60; testTwa += 1) {
       const spd = this.predictBasePolarSpeed(boat, tws, testTwa);
@@ -295,12 +296,14 @@ const NAVAL_MATH = {
       if (vmg > bestVmg) {
         bestVmg = vmg;
         bestTwa = testTwa;
+        bestSpeed = spd;
       }
     }
 
     return {
       twa: bestTwa,
-      vmg: Math.round(bestVmg * 10) / 10
+      vmg: Math.round(bestVmg * 10) / 10,
+      speedPercent: Math.round((bestSpeed / tws) * 100)
     };
   },
 
@@ -506,7 +509,9 @@ const NAVAL_MATH = {
     }
 
     if (config.headsailType === 'code0' && twa >= 100) {
-      realisticWindReduction *= 0.72;
+      // Code 0 remains useful through its reaching range; avoid making it
+      // slower than the same mainsail-only configuration at 120-135 degrees.
+      realisticWindReduction *= 0.90;
     }
 
     if (tws >= 30 && mainFrac > 0.8 && hsEffectiveFrac > 0.7) {
@@ -529,12 +534,17 @@ const NAVAL_MATH = {
 
     // 5. Sail Angle Efficiency based on aerodynamic sail profile
     let angleEfficiency = 1.0;
-    if (config.headsailType === 'code0') {
-      // Code sails are for reaching / light-air passage, not stronger upwind work.
+    if (hsEffectiveFrac === 0) {
+      // A furled headsail must not retain the selected sail type's penalty.
+      // With no headsail area, the mainsail-only polar governs performance.
+      angleEfficiency = 1.0;
+    } else if (config.headsailType === 'code0') {
+      // Code 0 is a reaching sail: efficiency should rise smoothly into its
+      // working range instead of collapsing at the 60-degree close reach.
       if (twa < 50) angleEfficiency = 0.35;
-      else if (twa < 65) angleEfficiency = 0.55;
+      else if (twa < 65) angleEfficiency = 0.75 + ((twa - 50) / 15) * 0.30;
       else if (twa <= 120) angleEfficiency = 1.05;
-      else angleEfficiency = 0.82;
+      else angleEfficiency = 0.90;
     } else if (config.headsailType === 'coded') {
       if (twa < 65) angleEfficiency = Math.max(0.15, (twa - 45) / 20.0);
       else if (twa >= 90 && twa <= 150) angleEfficiency = 1.08;
@@ -598,10 +608,10 @@ const NAVAL_MATH = {
       safetyNotice = "Full main with a downwind wing sail is not realistic; depower the main before hoisting this sail.";
       powerReductionFactor = 0.22;
     }
-    if (config.headsailType === 'code0' && mainFrac >= 0.82 && tws >= 18) {
-      safetyStatus = "Too Much Rig";
-      safetyNotice = "Code 0 is a passage reacher, not a max-power rig in strong air; use a genoa or reefed main instead.";
-      powerReductionFactor = 0.35;
+    if (config.headsailType === 'code0' && hsEffectiveFrac > 0 && mainFrac >= 0.82 && tws >= 18) {
+      safetyStatus = "Overpowered";
+      safetyNotice = "Full main and Code 0 are powerful at this wind strength; Reef 1 is recommended, but the boat remains underway.";
+      powerReductionFactor = 0.82;
     }
     if (config.headsailType === 'solent' && mainFrac >= 0.82 && tws >= 20 && twa <= 70) {
       safetyStatus = "Overpowered";

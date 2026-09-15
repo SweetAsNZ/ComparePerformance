@@ -685,6 +685,13 @@
               </div>
               <small style="font-size: 0.68rem; color: #94a3b8;">@ ${metrics.raw.upwindTarget.twa}° TWA</small>
             </div>
+            <div class="hero-stat-item">
+              <div class="hero-stat-label">General Wind Ability</div>
+              <div class="hero-stat-val" style="color: var(--brand-cyan)">
+                ~${metrics.raw.sailPerformancePercent}<span>%</span>
+              </div>
+              <small style="font-size: 0.68rem; color: #94a3b8;">of 15 kn wind speed</small>
+            </div>
           </div>
 
           <div class="hero-quick-specs">
@@ -1528,6 +1535,10 @@
           <div class="vmg-item">
             <span class="vmg-label">${state.sim.twa < 90 ? 'Upwind VMG' : 'Downwind VMG'}</span>
             <span class="vmg-val">${state.sim.twa < 90 ? v.upwindVmg : v.downwindVmg} kn</span>
+          </div>
+          <div class="vmg-item">
+            <span class="vmg-label">Wind Speed %</span>
+            <span class="vmg-val">${v.sailPerformancePercent}% of TWS</span>
           </div>
         </div>
 
