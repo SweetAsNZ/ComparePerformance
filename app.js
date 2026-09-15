@@ -651,6 +651,15 @@
       const reviewQuery = `${boat.manufacturer} ${boat.name} catamaran review`;
       const magazineReviewsUrl = `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} (site:yachtingworld.com OR site:sailmagazine.com OR site:multihullworld.com)`)}`;
       const ownerReviewsUrl = `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} owner experience forum`)}`;
+      const commentsUrl = `https://www.google.com/search?q=${encodeURIComponent(`"${boat.manufacturer} ${boat.name}" sailing comments owner passage`)}`;
+      const videoReviewsUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(reviewQuery)}`;
+      const publicationSearches = [
+        ['Yachting World', `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} site:yachtingworld.com`)}`],
+        ['Sail Magazine', `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} site:sailmagazine.com`)}`],
+        ['Multihulls World', `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} site:multihulls-world.com`)}`],
+        ['Cruising World', `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} site:cruisingworld.com`)}`]
+      ];
+      const publicationLinks = publicationSearches.map(([label, url]) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`).join('');
 
       const card = document.createElement('div');
       card.className = `boat-hero-card boat${bIdx}`;
@@ -719,6 +728,26 @@
               <span class="spec-val">${u.sail_area_upwind}</span>
             </div>
           </div>
+
+          <section class="model-reviews-box" aria-label="Live model reviews and owner comments">
+            <div class="model-reviews-header">
+              <strong>Reviews & comments</strong>
+              <span>Live search</span>
+            </div>
+            <div class="model-review-group">
+              <span class="model-review-label">Magazine reviews</span>
+              <div class="model-review-links">${publicationLinks}</div>
+            </div>
+            <div class="model-review-group">
+              <span class="model-review-label">Owners and sailors</span>
+              <div class="model-review-links">
+                <a href="${ownerReviewsUrl}" target="_blank" rel="noopener noreferrer">Owner forums</a>
+                <a href="${commentsUrl}" target="_blank" rel="noopener noreferrer">Passage comments</a>
+                <a href="${videoReviewsUrl}" target="_blank" rel="noopener noreferrer">Video reviews</a>
+              </div>
+            </div>
+            <small class="model-reviews-note">Opens current model-specific results; review scores are not assumed where no published rating exists.</small>
+          </section>
         </div>
       `;
       elements.heroCardsContainer.appendChild(card);
