@@ -269,6 +269,31 @@
         <!-- Simulator Grid Layout: Controls on Left, Visualizer & Results on Right -->
         <div class="vpp-layout-grid">
           <div class="vpp-controls-panel">
+
+            <!-- VPP Model Selection -->
+            <div class="sim-section-box">
+              <div class="sim-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 7h18M3 12h18M3 17h18"></path>
+                  <circle cx="7" cy="7" r="2"></circle>
+                  <circle cx="17" cy="12" r="2"></circle>
+                  <circle cx="9" cy="17" r="2"></circle>
+                </svg>
+                <span>VPP Models</span>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="vppBoatSelect1">Boat 1</label>
+                <select id="vppBoatSelect1" class="sim-select-dropdown" aria-label="VPP Boat 1"></select>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="vppBoatSelect2">Boat 2</label>
+                <select id="vppBoatSelect2" class="sim-select-dropdown" aria-label="VPP Boat 2"></select>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="vppBoatSelect3">Boat 3</label>
+                <select id="vppBoatSelect3" class="sim-select-dropdown" aria-label="VPP Boat 3"></select>
+              </div>
+            </div>
             
             <!-- Wind Conditions Group -->
             <div class="sim-section-box">
@@ -521,6 +546,6 @@
   <!-- Scripts -->
   <script src="data.js?v=2026-09-14-1"></script>
   <script src="calculations.js?v=2026-09-14-1"></script>
-  <script src="app.js?v=2026-09-15-1"></script>
+  <script src="app.js?v=2026-09-15-6"></script>
 </body>
 </html>

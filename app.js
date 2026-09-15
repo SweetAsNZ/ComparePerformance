@@ -46,6 +46,9 @@
     select1: document.getElementById('boatSelect1'),
     select2: document.getElementById('boatSelect2'),
     select3: document.getElementById('boatSelect3'),
+    vppSelect1: document.getElementById('vppBoatSelect1'),
+    vppSelect2: document.getElementById('vppBoatSelect2'),
+    vppSelect3: document.getElementById('vppBoatSelect3'),
     unitMetricBtn: document.getElementById('unitMetricBtn'),
     unitImperialBtn: document.getElementById('unitImperialBtn'),
     btnShare: document.getElementById('btnShare'),
@@ -125,8 +128,12 @@
       grouped[boat.manufacturer].push(boat);
     });
 
-    selects.forEach(select => {
+    const populateSelect = (select) => {
       select.innerHTML = '';
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      emptyOption.textContent = 'No boat selected';
+      select.appendChild(emptyOption);
       for (const [manufacturer, boats] of Object.entries(grouped)) {
         const optgroup = document.createElement('optgroup');
         optgroup.label = manufacturer;
@@ -138,7 +145,11 @@
         });
         select.appendChild(optgroup);
       }
-    });
+    };
+
+    [...selects, elements.vppSelect1, elements.vppSelect2, elements.vppSelect3]
+      .filter(Boolean)
+      .forEach(populateSelect);
   }
 
   /**
@@ -155,15 +166,18 @@
       state.unit = unitParam;
     }
 
-    state.boats[0] = findBoatByKeyOrId(key1) || CATAMARAN_DATABASE.find(b => b.id === 'fp-elba-45') || CATAMARAN_DATABASE[0];
-    state.boats[1] = findBoatByKeyOrId(key2) || CATAMARAN_DATABASE.find(b => b.id === 'fp-tanna-47') || CATAMARAN_DATABASE[1];
-    state.boats[2] = findBoatByKeyOrId(key3) || CATAMARAN_DATABASE.find(b => b.id === 'fp-aura-51') || CATAMARAN_DATABASE[2];
+    state.boats[0] = key1 === 'none' ? null : findBoatByKeyOrId(key1) || CATAMARAN_DATABASE.find(b => b.id === 'fp-elba-45') || CATAMARAN_DATABASE[0];
+    state.boats[1] = key2 === 'none' ? null : findBoatByKeyOrId(key2) || CATAMARAN_DATABASE.find(b => b.id === 'fp-tanna-47') || CATAMARAN_DATABASE[1];
+    state.boats[2] = key3 === 'none' ? null : findBoatByKeyOrId(key3) || CATAMARAN_DATABASE.find(b => b.id === 'fp-aura-51') || CATAMARAN_DATABASE[2];
 
-    elements.select1.value = state.boats[0].id;
-    elements.select2.value = state.boats[1].id;
-    elements.select3.value = state.boats[2].id;
+    elements.select1.value = state.boats[0]?.id || '';
+    elements.select2.value = state.boats[1]?.id || '';
+    elements.select3.value = state.boats[2]?.id || '';
+    elements.vppSelect1.value = elements.select1.value;
+    elements.vppSelect2.value = elements.select2.value;
+    elements.vppSelect3.value = elements.select3.value;
 
-    state.visibleBoats = [true, true, true];
+    state.visibleBoats = state.boats.map(Boolean);
     updateUnitButtons();
   }
 
@@ -186,9 +200,9 @@
    */
   function syncUrlParams() {
     const params = new URLSearchParams();
-    if (state.boats[0]) params.set('key1', state.boats[0].key || state.boats[0].name);
-    if (state.boats[1]) params.set('key2', state.boats[1].key || state.boats[1].name);
-    if (state.boats[2]) params.set('key3', state.boats[2].key || state.boats[2].name);
+    state.boats.forEach((boat, index) => {
+      params.set(`key${index + 1}`, boat ? (boat.key || boat.name) : 'none');
+    });
     if (state.unit !== 'metric') params.set('unit', state.unit);
     
     const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -269,20 +283,32 @@
 
     elements.select1.addEventListener('change', (e) => {
       state.boats[0] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
-      state.visibleBoats[0] = state.boats[0] ? true : false;
+      state.visibleBoats[0] = Boolean(state.boats[0]);
+      elements.vppSelect1.value = e.target.value;
       updateAll();
     });
 
     elements.select2.addEventListener('change', (e) => {
       state.boats[1] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
-      state.visibleBoats[1] = state.boats[1] ? true : false;
+      state.visibleBoats[1] = Boolean(state.boats[1]);
+      elements.vppSelect2.value = e.target.value;
       updateAll();
     });
 
     elements.select3.addEventListener('change', (e) => {
       state.boats[2] = CATAMARAN_DATABASE.find(b => b.id === e.target.value);
-      state.visibleBoats[2] = state.boats[2] ? true : false;
+      state.visibleBoats[2] = Boolean(state.boats[2]);
+      elements.vppSelect3.value = e.target.value;
       updateAll();
+    });
+
+    [elements.vppSelect1, elements.vppSelect2, elements.vppSelect3].forEach((select, index) => {
+      select.addEventListener('change', (e) => {
+        state.boats[index] = CATAMARAN_DATABASE.find(b => b.id === e.target.value) || null;
+        state.visibleBoats[index] = Boolean(state.boats[index]);
+        elements[`select${index + 1}`].value = e.target.value;
+        updateAll();
+      });
     });
 
     elements.unitMetricBtn.addEventListener('click', () => {
@@ -1421,7 +1447,15 @@
     const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
     const twX = centerX + radius * Math.cos(twaRad);
     const twY = centerY + radius * Math.sin(twaRad);
-    drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5, `TWS ${state.sim.tws} kn (${state.sim.twa}°)`);
+    drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5);
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`TWS ${state.sim.tws} kn`, twX, twY - 13);
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText(`TRUE WIND ${state.sim.twa}°`, twX, twY + 13);
 
     state.boats.forEach((boat, idx) => {
       if (!boat) return;
@@ -1433,6 +1467,27 @@
       const boatLen = (v.boatSpeed / maxRoseKn) * radius;
       const bx = centerX + boatLen * Math.cos(boatRad);
       const by = centerY + boatLen * Math.sin(boatRad);
+
+      // The dashed line is the boat's no-leeway course; the solid line is its
+      // actual track, making the leeway effect visible even when angles match.
+      const headingRad = (state.sim.twa - 90) * (Math.PI / 180.0);
+      const headingX = centerX + boatLen * Math.cos(headingRad);
+      const headingY = centerY + boatLen * Math.sin(headingRad);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(headingX, headingY);
+      ctx.strokeStyle = 'rgba(226, 232, 240, 0.65)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const leewayArcRadius = Math.max(18, boatLen * 0.55);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, leewayArcRadius, headingRad, boatRad, v.leewayAngle < 0);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
       drawArrow(ctx, centerX, centerY, bx, by, color, 3);
 
       const labelOffset = Math.min(28, Math.max(16, radius * 0.08));
@@ -1443,7 +1498,7 @@
       ctx.font = '600 10px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`BOAT ${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY);
+      ctx.fillText(`BOAT ${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY - 6);
     });
   }
 
@@ -1528,10 +1583,6 @@
         </div>
 
         <div class="vpp-detail-specs">
-          <div class="vpp-spec-row">
-            <span class="name">Leeway Drift</span>
-            <span class="val" style="color: #38bdf8;">${v.leewayAngle}° (Track: ${v.trackAngleRelWind}°)</span>
-          </div>
           <div class="vpp-spec-row">
             <span class="name">Active Sail Area</span>
             <span class="val">${totalAreaVal} ${areaUnit} (${v.sailPowerRatioPercent}%)</span>
