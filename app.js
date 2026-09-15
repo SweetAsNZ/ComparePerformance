@@ -688,7 +688,7 @@
             <div class="hero-stat-item">
               <div class="hero-stat-label">General Wind Ability</div>
               <div class="hero-stat-val" style="color: var(--brand-cyan)">
-                ~${metrics.raw.sailPerformancePercent}<span>%</span>
+                ~${metrics.raw.generalWindAbilityPercent.toFixed(2)}<span>%</span>
               </div>
               <small style="font-size: 0.68rem; color: #94a3b8;">of 15 kn wind speed</small>
             </div>

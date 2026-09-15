@@ -58,6 +58,7 @@ const NAVAL_MATH = {
 
     // 7. Sail Performance (% of 15-knot true wind)
     const sailPerformancePercent = Math.round((estimatedBoatSpeed / 15.0) * 100);
+    const generalWindAbilityPercent = Math.round((estimatedBoatSpeed / 15.0) * 10000) / 100;
 
     // 8. Overall Maximum Speed & Optimal Reaching Angle from Polar Matrix
     const maxPolar = this.calculateMaxPolarSpeed(boat);
@@ -238,6 +239,7 @@ const NAVAL_MATH = {
         dispLengthRatio: dispLengthRatio,
         estimatedBoatSpeed: estimatedBoatSpeed,
         sailPerformancePercent: sailPerformancePercent,
+        generalWindAbilityPercent: generalWindAbilityPercent,
         hullSpeed: hullSpeed,
         beamLengthRatio: beamLengthRatio,
         bridgedeckRatio: bridgedeckRatio,
