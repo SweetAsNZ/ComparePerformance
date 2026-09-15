@@ -14,9 +14,10 @@
     { id: 'genoaReef1', label: 'Genoa Reef 1', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.75, color: '#f59e0b' },
     { id: 'genoaReef2', label: 'Genoa Reef 2', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.5, color: '#f97316' },
     { id: 'genoaReef3', label: 'Genoa Reef 3', mainReef: 'full', headsailType: 'genoa', headsailReef: 0.25, color: '#ea580c' },
-    { id: 'code0', label: 'Code Zero', mainReef: 'full', headsailType: 'code0', headsailReef: 1.0, color: '#a855f7' },
-    { id: 'coded', label: 'Code D', mainReef: 'full', headsailType: 'coded', headsailReef: 1.0, color: '#ec4899' },
-    { id: 'parasailor', label: 'Parasailor', mainReef: 'full', headsailType: 'parasailor', headsailReef: 1.0, color: '#10b981' }
+    { id: 'solent', label: 'Self-Tacking Solent + Reefed Main', mainReef: 'reef1', headsailType: 'solent', headsailReef: 1.0, color: '#f59e0b' },
+    { id: 'code0', label: 'Code 0 + Main', mainReef: 'reef1', headsailType: 'code0', headsailReef: 1.0, color: '#a855f7' },
+    { id: 'coded', label: 'Code D + Reefed Main', mainReef: 'reef2', headsailType: 'coded', headsailReef: 1.0, color: '#ec4899' },
+    { id: 'parasailor', label: 'Parasailor + Reefed Main', mainReef: 'reef2', headsailType: 'parasailor', headsailReef: 1.0, color: '#10b981' }
   ];
 
   // Application State
@@ -469,8 +470,10 @@
       const descMap = {
         'genoa': 'Standard Overlapping Genoa (110%)',
         'solent': 'Self-Tacking Solent / Jib (82%)',
-        'gennaker': 'Code 0 / Gennaker / Screecher (185%)',
-        'spinnaker': 'Asymmetrical Spinnaker (230%)',
+        'code0': 'Code 0 / Gennaker / Screecher (185%)',
+        'coded': 'Code D Furling Spinnaker (210%)',
+        'parasailor': 'Parasailor (260%)',
+        'spinnaker': 'Asymmetrical Spinnaker (235%)',
         'storm': 'Heavy Weather Storm Jib (35%)',
         'none': 'Furled / Dropped (0%)'
       };
@@ -878,6 +881,10 @@
 
     const width = rect.width;
     const height = rect.height;
+    if (width <= 0 || height <= 100) {
+      requestAnimationFrame(renderPolarChart);
+      return;
+    }
     const centerX = width / 2;
     const centerY = height * 0.72;
     const maxRadius = Math.min(width * 0.42, (height - 70) * 0.78);
@@ -1210,6 +1217,10 @@
 
     const width = rect.width;
     const height = rect.height;
+    if (width <= 0 || height <= 0) {
+      requestAnimationFrame(renderCompassVector);
+      return;
+    }
     const centerX = width / 2;
     const centerY = height / 2;
     const zoomFactor = state.radarZoom || 1.0;
@@ -1361,56 +1372,79 @@
     const centerY = height / 2;
     const radius = Math.min(width, height) * 0.40;
 
+    const boatSpeeds = state.boats
+      .map(boat => (boat ? NAVAL_MATH.simulateSailPerformance(boat, state.sim).boatSpeed : 0))
+      .filter(speed => Number.isFinite(speed) && speed > 0);
+    const tws = Number(state.sim.tws);
+    const maxRoseKn = Math.max(15, ...boatSpeeds, Number.isFinite(tws) ? tws : 15);
+
     ctx.clearRect(0, 0, width, height);
 
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    // Radial speed rose: 1 kn minor rings, 5 kn major rings.
+    for (let ring = 1; ring <= Math.ceil(maxRoseKn); ring++) {
+      const r = (ring / maxRoseKn) * radius;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+      ctx.strokeStyle = ring % 5 === 0 ? 'rgba(148, 163, 184, 0.62)' : 'rgba(148, 163, 184, 0.30)';
+      ctx.lineWidth = ring % 5 === 0 ? 1.5 : 1;
+      ctx.stroke();
+
+      if (ring % 5 === 0) {
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${ring} kn`, centerX, centerY - r - 7);
+      }
+    }
+
+    // Compass axis lines and labels
+    for (let deg = 0; deg < 360; deg += 45) {
+      const ang = (deg - 90) * (Math.PI / 180);
+      const x = centerX + radius * Math.cos(ang);
+      const y = centerY + radius * Math.sin(ang);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.stroke();
+    }
 
     ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
     ctx.font = '10px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('HEADING 000°', centerX, centerY - radius - 12);
-    ctx.fillText('180°', centerX, centerY + radius + 12);
-    ctx.fillText('090° STBD', centerX + radius + 28, centerY);
-    ctx.fillText('270° PORT', centerX - radius - 28, centerY);
-
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.beginPath();
-    ctx.roundRect(-24, -22, 6, 44, 3);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.roundRect(18, -22, 6, 44, 3);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.fillRect(-18, -8, 36, 24);
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, -2, 3, 0, 2 * Math.PI);
-    ctx.stroke();
-
-    ctx.restore();
+    ctx.fillText('000°', centerX, centerY - radius - 14);
+    ctx.fillText('090°', centerX + radius + 20, centerY);
+    ctx.fillText('180°', centerX, centerY + radius + 14);
+    ctx.fillText('270°', centerX - radius - 20, centerY);
 
     const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
     const twX = centerX + radius * Math.cos(twaRad);
     const twY = centerY + radius * Math.sin(twaRad);
-
     drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5, `TWS ${state.sim.tws} kn (${state.sim.twa}°)`);
 
-    if (state.boats[0]) {
-      const vpp1 = NAVAL_MATH.simulateSailPerformance(state.boats[0], state.sim);
-      const awaRad = (vpp1.awa - 90) * (Math.PI / 180.0);
-      const awX = centerX + (radius * 0.85) * Math.cos(awaRad);
-      const awY = centerY + (radius * 0.85) * Math.sin(awaRad);
-      drawArrow(ctx, awX, awY, centerX, centerY, '#06b6d4', 2.0, `AWS ${vpp1.aws} kn (${vpp1.awa}°)`);
-    }
+    state.boats.forEach((boat, idx) => {
+      if (!boat) return;
+      const v = NAVAL_MATH.simulateSailPerformance(boat, state.sim);
+      if (!Number.isFinite(v.boatSpeed)) return;
+      const color = getComputedStyle(document.documentElement).getPropertyValue(`--boat${idx + 1}-color`).trim() || '#06b6d4';
+      const angleOffset = state.sim.twa + v.leewayAngle - 90;
+      const boatRad = angleOffset * (Math.PI / 180.0);
+      const boatLen = (v.boatSpeed / maxRoseKn) * radius;
+      const bx = centerX + boatLen * Math.cos(boatRad);
+      const by = centerY + boatLen * Math.sin(boatRad);
+      drawArrow(ctx, centerX, centerY, bx, by, color, 3);
+
+      const labelOffset = Math.min(28, Math.max(16, radius * 0.08));
+      const labelNormalOffset = (idx - (state.boats.length - 1) / 2) * 14;
+      const labelX = centerX + (boatLen + labelOffset) * Math.cos(boatRad) - labelNormalOffset * Math.sin(boatRad);
+      const labelY = centerY + (boatLen + labelOffset) * Math.sin(boatRad) + labelNormalOffset * Math.cos(boatRad);
+      ctx.fillStyle = color;
+      ctx.font = '600 10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`BOAT ${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY);
+    });
   }
 
   function drawArrow(ctx, fromX, fromY, toX, toY, color, width, label) {

@@ -478,7 +478,41 @@ const NAVAL_MATH = {
     const hsReef = Math.max(0, Math.min(1.0, config.headsailReef !== undefined ? config.headsailReef : 1.0));
     const hsEffectiveFrac = hsChoice.areaRatio * hsReef;
 
-    // 3. Compute active sail area vs standard design upwind sail area
+    // 3. High-wind realism and sail-overlap checks for downwind / broad-reach combinations.
+    const headsailWindLimits = {
+      'genoa': 30,
+      'solent': 28,
+      'code0': 30,
+      'coded': 24,
+      'parasailor': 22,
+      'spinnaker': 18,
+      'storm': 40,
+      'none': 50
+    };
+    const validHeadsailForTws = headsailWindLimits[config.headsailType || 'genoa'] ?? 35;
+    let realisticWindReduction = 1.0;
+
+    if (tws > validHeadsailForTws) {
+      const excess = (tws - validHeadsailForTws) / Math.max(1, validHeadsailForTws);
+      realisticWindReduction *= Math.max(0.12, 1 - excess * 0.9);
+    }
+
+    if (twa >= 110 && ['parasailor', 'coded', 'spinnaker'].includes(config.headsailType)) {
+      realisticWindReduction *= 0.55;
+    }
+
+    if (twa >= 120 && ['genoa', 'solent'].includes(config.headsailType)) {
+      realisticWindReduction *= 0.65;
+    }
+
+    if (config.headsailType === 'code0' && twa >= 100) {
+      realisticWindReduction *= 0.72;
+    }
+
+    if (tws >= 30 && mainFrac > 0.8 && hsEffectiveFrac > 0.7) {
+      realisticWindReduction *= 0.70;
+    }
+
     const stdMainArea = boat.specs.mainsail_area_m2;
     const stdGenoaArea = boat.specs.genoa_area_m2;
     const stdUpwindArea = boat.specs.sail_area_upwind_m2;
@@ -496,8 +530,11 @@ const NAVAL_MATH = {
     // 5. Sail Angle Efficiency based on aerodynamic sail profile
     let angleEfficiency = 1.0;
     if (config.headsailType === 'code0') {
-      if (twa < 45) angleEfficiency = Math.max(0.2, (twa - 30) / 15.0);
-      else if (twa > 140) angleEfficiency = 0.88;
+      // Code sails are for reaching / light-air passage, not stronger upwind work.
+      if (twa < 50) angleEfficiency = 0.35;
+      else if (twa < 65) angleEfficiency = 0.55;
+      else if (twa <= 120) angleEfficiency = 1.05;
+      else angleEfficiency = 0.82;
     } else if (config.headsailType === 'coded') {
       if (twa < 65) angleEfficiency = Math.max(0.15, (twa - 45) / 20.0);
       else if (twa >= 90 && twa <= 150) angleEfficiency = 1.08;
@@ -507,8 +544,29 @@ const NAVAL_MATH = {
     } else if (config.headsailType === 'spinnaker') {
       if (twa < 95) angleEfficiency = Math.max(0.1, (twa - 75) / 20.0);
       else if (twa >= 115 && twa <= 165) angleEfficiency = 1.10;
-    } else if (config.headsailType === 'solent' || config.headsailType === 'genoa') {
-      if (twa > 140) angleEfficiency = 0.88;
+    } else if (config.headsailType === 'solent') {
+      // Solent is better after genoa reefing or on a reach with some main, not as a normal passage rig in full-power upwind mode.
+      if (twa < 32) angleEfficiency = 0.62;
+      else if (twa < 52) angleEfficiency = 0.82;
+      else if (twa <= 100) angleEfficiency = 1.06;
+      else angleEfficiency = 0.78;
+
+      if (config.mainReef === 'full' && tws > 20 && twa < 60) {
+        angleEfficiency *= 0.82;
+      }
+      if (mainFrac < 0.82 && twa >= 40 && twa <= 110) {
+        angleEfficiency *= 1.08;
+      }
+    } else if (config.headsailType === 'genoa') {
+      // Normal passage setup: genoa or code sail with full main / reefed main.
+      if (twa < 35) angleEfficiency = 0.72;
+      else if (twa < 55) angleEfficiency = 0.90;
+      else if (twa <= 120) angleEfficiency = 1.08;
+      else angleEfficiency = 0.88;
+
+      if (tws > 22 && twa < 55 && mainFrac >= 0.82) {
+        angleEfficiency *= 0.84;
+      }
     }
 
     // 6. Hydrodynamic Loading / Payload effect
@@ -533,6 +591,28 @@ const NAVAL_MATH = {
       safetyNotice = "Excessive rig loads! Depowering required (Reef 2 + Furling).";
       powerReductionFactor = 0.85;
     }
+
+    // Realistic crossover + safety rules: downwind headsails with full main or a fully powered broad-reach set are not viable.
+    if (['parasailor', 'coded', 'spinnaker'].includes(config.headsailType) && mainFrac >= 0.82 && tws >= 12) {
+      safetyStatus = "Rig Overloaded";
+      safetyNotice = "Full main with a downwind wing sail is not realistic; depower the main before hoisting this sail.";
+      powerReductionFactor = 0.22;
+    }
+    if (config.headsailType === 'code0' && mainFrac >= 0.82 && tws >= 18) {
+      safetyStatus = "Too Much Rig";
+      safetyNotice = "Code 0 is a passage reacher, not a max-power rig in strong air; use a genoa or reefed main instead.";
+      powerReductionFactor = 0.35;
+    }
+    if (config.headsailType === 'solent' && mainFrac >= 0.82 && tws >= 20 && twa <= 70) {
+      safetyStatus = "Overpowered";
+      safetyNotice = "Solent works best after reefing the genoa or with a modestly reefed main, not a full main in this condition.";
+      powerReductionFactor = 0.58;
+    }
+    if (tws >= 30 && mainFrac > 0.8 && hsEffectiveFrac > 0.7) {
+      safetyStatus = "Rig Overloaded";
+      safetyNotice = "Heavy-air rig loads are extreme; a full main with a code 0 / parasailor rig is not viable in this wind range.";
+      powerReductionFactor = 0.60;
+    }
     if (isGale && (mainFrac > 0.5 || hsEffectiveFrac > 0.6)) {
       safetyStatus = "Hazardous Rig Load";
       safetyNotice = "Extreme gust capsize risk. Drop main to Reef 3 / Storm Jib!";
@@ -553,9 +633,18 @@ const NAVAL_MATH = {
     let boatSpeed = 0;
     if (activeTotalArea > 0) {
       const powerScaling = Math.pow(Math.max(0.05, sailPowerRatio), 0.42);
-      boatSpeed = basePolarSpeed * powerScaling * angleEfficiency * loadFactor * powerReductionFactor;
+      boatSpeed = basePolarSpeed * powerScaling * angleEfficiency * loadFactor * powerReductionFactor * realisticWindReduction;
     } else {
       boatSpeed = Math.min(2.5, tws * 0.08);
+    }
+
+    if (['parasailor', 'coded', 'spinnaker'].includes(config.headsailType) && twa >= 110 && twa <= 180 && tws >= 8) {
+      const minimumWingSailSpeed = Math.max(3.5, tws * 0.35);
+      boatSpeed = Math.max(boatSpeed, minimumWingSailSpeed);
+    }
+
+    if (config.headsailType === 'parasailor' && tws <= 18 && twa >= 100) {
+      boatSpeed = Math.max(boatSpeed, 4.0);
     }
 
     boatSpeed = Math.round(boatSpeed * 10) / 10;
