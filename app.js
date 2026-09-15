@@ -648,6 +648,9 @@
       const coreBadge = boat.coreCategory || "Balsa / Foam";
       const marketPrice = boat.avgMarketPrice || boat.priceEstimate || "Contact Dealer";
       const heroImage = normalizeBoatImage(boat.image, index);
+      const reviewQuery = `${boat.manufacturer} ${boat.name} catamaran review`;
+      const magazineReviewsUrl = `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} (site:yachtingworld.com OR site:sailmagazine.com OR site:multihullworld.com)`)}`;
+      const ownerReviewsUrl = `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} owner experience forum`)}`;
 
       const card = document.createElement('div');
       card.className = `boat-hero-card boat${bIdx}`;
@@ -659,6 +662,10 @@
         <div class="boat-hero-body">
           <div class="boat-builder-name">${boat.manufacturer} • ${boat.year}</div>
           <h2 class="boat-model-name">${boat.name}</h2>
+          <div class="boat-review-links" aria-label="Review links">
+            <a href="${magazineReviewsUrl}" target="_blank" rel="noopener noreferrer">Magazine reviews</a>
+            <a href="${ownerReviewsUrl}" target="_blank" rel="noopener noreferrer">Owner reviews</a>
+          </div>
           
           <!-- Core Construction & Market Price Chips -->
           <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem;">

@@ -330,6 +330,31 @@ body {
   color: #fff;
 }
 
+.boat-review-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.boat-review-links a {
+  color: var(--brand-cyan);
+  text-decoration: none;
+}
+
+.boat-review-links a::after {
+  content: ' ↗';
+  color: var(--text-muted);
+}
+
+.boat-review-links a:hover,
+.boat-review-links a:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+}
+
 .hero-stats-banner {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
