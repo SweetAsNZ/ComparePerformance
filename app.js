@@ -1394,86 +1394,61 @@
 
     const width = rect.width;
     const height = rect.height;
+    if (width <= 0 || height <= 0) {
+      requestAnimationFrame(renderCompassVector);
+      return;
+    }
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.min(width, height) * 0.40;
 
-    const boatSpeeds = state.boats
-      .map(boat => (boat ? NAVAL_MATH.simulateSailPerformance(boat, state.sim).boatSpeed : 0))
-      .filter(speed => Number.isFinite(speed) && speed > 0);
-    const tws = Number(state.sim.tws);
-    const maxRoseKn = Math.max(15, ...boatSpeeds, Number.isFinite(tws) ? tws : 15);
-
     ctx.clearRect(0, 0, width, height);
 
-    // Keep the plotter as a clean directional instrument rather than a dense radar.
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
-    ctx.lineWidth = 2;
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-
-    // Compass axis lines and labels
-    for (let deg = 0; deg < 360; deg += 45) {
-      const ang = (deg - 90) * (Math.PI / 180);
-      const x = centerX + radius * Math.cos(ang);
-      const y = centerY + radius * Math.sin(ang);
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-      ctx.stroke();
-    }
 
     ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
     ctx.font = '10px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('000°', centerX, centerY - radius - 14);
-    ctx.fillText('090°', centerX + radius + 20, centerY);
-    ctx.fillText('180°', centerX, centerY + radius + 14);
-    ctx.fillText('270°', centerX - radius - 20, centerY);
+    ctx.fillText('HEADING 000°', centerX, centerY - radius - 12);
+    ctx.fillText('180°', centerX, centerY + radius + 12);
+    ctx.fillText('090° STBD', centerX + radius + 28, centerY);
+    ctx.fillText('270° PORT', centerX - radius - 28, centerY);
 
-    // Simple catamaran marker at the origin.
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
-    ctx.fillRect(centerX - 25, centerY - 12, 50, 24);
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
-    ctx.fillRect(centerX - 35, centerY - 17, 8, 34);
-    ctx.fillRect(centerX + 27, centerY - 17, 8, 34);
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(-24, -22, 6, 44, 3);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(18, -22, 6, 44, 3);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(-18, -8, 36, 24);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -2, 3, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
 
     const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
     const twX = centerX + radius * Math.cos(twaRad);
     const twY = centerY + radius * Math.sin(twaRad);
-    drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5);
-    ctx.fillStyle = '#60a5fa';
-    ctx.font = '600 10px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`TWS ${state.sim.tws} kn (${state.sim.twa}°)`, twX, twY - 13);
+    drawArrow(ctx, twX, twY, centerX, centerY, '#3b82f6', 2.5, `TWS ${state.sim.tws} kn (${state.sim.twa}°)`);
 
-    state.boats.forEach((boat, idx) => {
-      if (!boat) return;
-      const v = NAVAL_MATH.simulateSailPerformance(boat, state.sim);
-      if (!Number.isFinite(v.boatSpeed)) return;
-      const color = getComputedStyle(document.documentElement).getPropertyValue(`--boat${idx + 1}-color`).trim() || '#06b6d4';
-      const angleOffset = state.sim.twa + v.leewayAngle - 90;
-      const boatRad = angleOffset * (Math.PI / 180.0);
-      const boatLen = (v.boatSpeed / maxRoseKn) * radius;
-      const bx = centerX + boatLen * Math.cos(boatRad);
-      const by = centerY + boatLen * Math.sin(boatRad);
-
-      drawArrow(ctx, centerX, centerY, bx, by, color, 3);
-
-      const labelRadius = radius * 0.72;
-      const labelNormalOffset = (idx - (state.boats.length - 1) / 2) * 18;
-      const labelX = centerX + labelRadius * Math.cos(boatRad) - labelNormalOffset * Math.sin(boatRad);
-      const labelY = centerY + labelRadius * Math.sin(boatRad) + labelNormalOffset * Math.cos(boatRad);
-      ctx.fillStyle = color;
-      ctx.font = '600 10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`B${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY);
-    });
+    if (state.boats[0]) {
+      const vpp1 = NAVAL_MATH.simulateSailPerformance(state.boats[0], state.sim);
+      const awaRad = (vpp1.awa - 90) * (Math.PI / 180.0);
+      const awX = centerX + (radius * 0.85) * Math.cos(awaRad);
+      const awY = centerY + (radius * 0.85) * Math.sin(awaRad);
+      drawArrow(ctx, awX, awY, centerX, centerY, '#06b6d4', 2.0, `AWS ${vpp1.aws} kn (${vpp1.awa}°)`);
+    }
   }
 
   function drawArrow(ctx, fromX, fromY, toX, toY, color, width, label) {
