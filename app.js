@@ -1406,22 +1406,12 @@
 
     ctx.clearRect(0, 0, width, height);
 
-    // Radial speed rose: 1 kn minor rings, 5 kn major rings.
-    for (let ring = 1; ring <= Math.ceil(maxRoseKn); ring++) {
-      const r = (ring / maxRoseKn) * radius;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
-      ctx.strokeStyle = ring % 5 === 0 ? 'rgba(148, 163, 184, 0.62)' : 'rgba(148, 163, 184, 0.30)';
-      ctx.lineWidth = ring % 5 === 0 ? 1.5 : 1;
-      ctx.stroke();
-
-      if (ring % 5 === 0) {
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
-        ctx.font = '10px JetBrains Mono, monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${ring} kn`, centerX, centerY - r - 7);
-      }
-    }
+    // Keep the plotter as a clean directional instrument rather than a dense radar.
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
     // Compass axis lines and labels
     for (let deg = 0; deg < 360; deg += 45) {
@@ -1431,7 +1421,7 @@
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
       ctx.stroke();
     }
 
@@ -1444,6 +1434,13 @@
     ctx.fillText('180°', centerX, centerY + radius + 14);
     ctx.fillText('270°', centerX - radius - 20, centerY);
 
+    // Simple catamaran marker at the origin.
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+    ctx.fillRect(centerX - 25, centerY - 12, 50, 24);
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
+    ctx.fillRect(centerX - 35, centerY - 17, 8, 34);
+    ctx.fillRect(centerX + 27, centerY - 17, 8, 34);
+
     const twaRad = (state.sim.twa - 90) * (Math.PI / 180.0);
     const twX = centerX + radius * Math.cos(twaRad);
     const twY = centerY + radius * Math.sin(twaRad);
@@ -1452,10 +1449,7 @@
     ctx.font = '600 10px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`TWS ${state.sim.tws} kn`, twX, twY - 13);
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
-    ctx.font = '9px JetBrains Mono, monospace';
-    ctx.fillText(`TRUE WIND ${state.sim.twa}°`, twX, twY + 13);
+    ctx.fillText(`TWS ${state.sim.tws} kn (${state.sim.twa}°)`, twX, twY - 13);
 
     state.boats.forEach((boat, idx) => {
       if (!boat) return;
@@ -1468,37 +1462,17 @@
       const bx = centerX + boatLen * Math.cos(boatRad);
       const by = centerY + boatLen * Math.sin(boatRad);
 
-      // The dashed line is the boat's no-leeway course; the solid line is its
-      // actual track, making the leeway effect visible even when angles match.
-      const headingRad = (state.sim.twa - 90) * (Math.PI / 180.0);
-      const headingX = centerX + boatLen * Math.cos(headingRad);
-      const headingY = centerY + boatLen * Math.sin(headingRad);
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(headingX, headingY);
-      ctx.strokeStyle = 'rgba(226, 232, 240, 0.65)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      const leewayArcRadius = Math.max(18, boatLen * 0.55);
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, leewayArcRadius, headingRad, boatRad, v.leewayAngle < 0);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
       drawArrow(ctx, centerX, centerY, bx, by, color, 3);
 
-      const labelOffset = Math.min(28, Math.max(16, radius * 0.08));
-      const labelNormalOffset = (idx - (state.boats.length - 1) / 2) * 14;
-      const labelX = centerX + (boatLen + labelOffset) * Math.cos(boatRad) - labelNormalOffset * Math.sin(boatRad);
-      const labelY = centerY + (boatLen + labelOffset) * Math.sin(boatRad) + labelNormalOffset * Math.cos(boatRad);
+      const labelRadius = radius * 0.72;
+      const labelNormalOffset = (idx - (state.boats.length - 1) / 2) * 18;
+      const labelX = centerX + labelRadius * Math.cos(boatRad) - labelNormalOffset * Math.sin(boatRad);
+      const labelY = centerY + labelRadius * Math.sin(boatRad) + labelNormalOffset * Math.cos(boatRad);
       ctx.fillStyle = color;
       ctx.font = '600 10px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`BOAT ${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY - 6);
+      ctx.fillText(`B${idx + 1} ${v.boatSpeed.toFixed(1)} kn`, labelX, labelY);
     });
   }
 
