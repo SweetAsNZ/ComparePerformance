@@ -37,7 +37,10 @@
       mainReef: 'full',
       headsailType: 'genoa',
       headsailReef: 1.0,
-      payloadTons: 1.5
+      payloadTons: 1.5,
+      waveHeightM: 0.5,
+      wavePeriodS: 8,
+      waveDirection: 'ahead'
     }
   };
 
@@ -92,10 +95,16 @@
     simHeadsailTypeSelect: document.getElementById('simHeadsailTypeSelect'),
     simHeadsailReefSelect: document.getElementById('simHeadsailReefSelect'),
     simPayloadSelect: document.getElementById('simPayloadSelect'),
+    simWaveHeightSelect: document.getElementById('simWaveHeightSelect'),
+    simWavePeriodSelect: document.getElementById('simWavePeriodSelect'),
+    simWaveDirectionSelect: document.getElementById('simWaveDirectionSelect'),
     simMainReefDesc: document.getElementById('simMainReefDesc'),
     simHeadsailDesc: document.getElementById('simHeadsailDesc'),
     simHeadsailReefDesc: document.getElementById('simHeadsailReefDesc'),
     simPayloadDesc: document.getElementById('simPayloadDesc'),
+    simWaveHeightDesc: document.getElementById('simWaveHeightDesc'),
+    simWavePeriodDesc: document.getElementById('simWavePeriodDesc'),
+    simWaveDirectionDesc: document.getElementById('simWaveDirectionDesc'),
     simResultsContainer: document.getElementById('simResultsContainer'),
     
     toast: document.getElementById('toastNotice'),
@@ -529,6 +538,27 @@
         '4.5': '+4,500 kg Expedition'
       };
       if (elements.simPayloadDesc) elements.simPayloadDesc.textContent = descMap[e.target.value] || '';
+      updateVppSimulator();
+    });
+
+    elements.simWaveHeightSelect.addEventListener('change', (e) => {
+      state.sim.waveHeightM = parseFloat(e.target.value);
+      const descriptions = { '0': 'Calm water', '0.5': 'Slight sea', '1.5': 'Moderate sea', '3': 'Rough sea', '5': 'Very rough sea', '7.5': 'High sea', '10': 'Very high sea' };
+      elements.simWaveHeightDesc.textContent = descriptions[e.target.value] || '';
+      updateVppSimulator();
+    });
+
+    elements.simWavePeriodSelect.addEventListener('change', (e) => {
+      state.sim.wavePeriodS = parseFloat(e.target.value);
+      const descriptions = { '4': 'Short and steep', '6': 'Short period', '8': 'Moderate period', '10': 'Long swell', '14': 'Ocean swell' };
+      elements.simWavePeriodDesc.textContent = descriptions[e.target.value] || '';
+      updateVppSimulator();
+    });
+
+    elements.simWaveDirectionSelect.addEventListener('change', (e) => {
+      state.sim.waveDirection = e.target.value;
+      const descriptions = { 'ahead': 'Head seas', 'bow': 'Bow seas', 'beam': 'Beam seas', 'quartering': 'Quartering seas', 'following': 'Following seas' };
+      elements.simWaveDirectionDesc.textContent = descriptions[e.target.value] || '';
       updateVppSimulator();
     });
 
@@ -1586,6 +1616,10 @@
           <div class="vpp-spec-row">
             <span class="name">Max Polar Speed</span>
             <span class="val" style="color: #34d399;">${v.maxPolarSpeed} kn (@ ${v.maxPolarTwa}° in ${v.maxPolarTws}kn)</span>
+          </div>
+          <div class="vpp-spec-row">
+            <span class="name">Sea State Loss</span>
+            <span class="val">-${v.waveSpeedLossPercent}% (${v.waveHeightM} m / ${v.wavePeriodS} s, ${v.waveDirection})</span>
           </div>
           <div class="vpp-spec-row">
             <span class="name">YachtWorld Avg Market</span>

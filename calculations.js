@@ -450,6 +450,9 @@ const NAVAL_MATH = {
    *   - headsailType: 'genoa' | 'solent' | 'gennaker' | 'spinnaker' | 'storm' | 'none'
    *   - headsailReef: 1.0 (100%), 0.75, 0.50, 0.25, 0.0 (furled)
    *   - payloadTons: additional cruising load in metric tons (e.g. 0 to 4.0)
+  *   - waveHeightM: significant wave height in meters
+  *   - wavePeriodS: dominant wave period in seconds
+  *   - waveDirection: 'ahead' | 'bow' | 'beam' | 'quartering' | 'following'
    */
   simulateSailPerformance(boat, config) {
     const tws = Math.max(1, config.tws || 15);
@@ -585,6 +588,30 @@ const NAVAL_MATH = {
     const lightDisp = boat.specs.displacement_light_t;
     const loadFactor = Math.pow(lightDisp / (lightDisp + payload), 0.35);
 
+    // Short, steep waves cost substantially more speed than long swell. Direction
+    // is relative to the bow, with head seas producing the highest encounter load.
+    const waveHeightM = Math.max(0, Number(config.waveHeightM) || 0);
+    const wavePeriodS = Math.max(2, Number(config.wavePeriodS) || 8);
+    const waveDirectionFactors = {
+      'ahead': 1.0,
+      'bow': 0.85,
+      'beam': 0.68,
+      'quartering': 0.48,
+      'following': 0.30
+    };
+    const waveDirection = config.waveDirection || 'ahead';
+    const directionFactor = waveDirectionFactors[waveDirection] ?? 1.0;
+    const deepWaterWavelengthM = 1.56 * wavePeriodS * wavePeriodS;
+    const waveSteepness = waveHeightM / deepWaterWavelengthM;
+    const shortWaveFactor = Math.max(0.72, Math.min(1.45, Math.sqrt(9 / wavePeriodS)));
+    const strongWindFactor = 1 + Math.max(0, tws - 25) / 75;
+    const steepnessFactor = 1 + Math.max(0, waveSteepness - 0.035) * 8;
+    const waveSpeedLossPercent = Math.min(
+      65,
+      waveHeightM * directionFactor * shortWaveFactor * strongWindFactor * steepnessFactor * 11
+    );
+    const waveReductionFactor = 1 - waveSpeedLossPercent / 100;
+
     // 7. Overpowering / Heeling limits and Safety Thresholds
     let safetyStatus = "Optimal";
     let safetyNotice = "Sail configuration well balanced for conditions.";
@@ -641,6 +668,12 @@ const NAVAL_MATH = {
       safetyNotice = "No sails set. Drifting under windage only.";
     }
 
+    if (waveHeightM >= 3) {
+      const waveWarning = `${waveHeightM.toFixed(1)} m ${waveDirection} seas reduce predicted speed by ${Math.round(waveSpeedLossPercent)}%.`;
+      if (safetyStatus === "Optimal") safetyStatus = waveHeightM >= 5 ? "Severe Sea State" : "Heavy Seas";
+      safetyNotice = `${safetyNotice} ${waveWarning}`;
+    }
+
     // 8. Dynamic Speed Calculation
     let boatSpeed = 0;
     if (activeTotalArea > 0) {
@@ -659,6 +692,7 @@ const NAVAL_MATH = {
       boatSpeed = Math.max(boatSpeed, 4.0);
     }
 
+    boatSpeed *= waveReductionFactor;
     boatSpeed = Math.round(boatSpeed * 10) / 10;
 
     // 9. Apparent Wind Speed (AWS) & Apparent Wind Angle (AWA)
@@ -706,6 +740,10 @@ const NAVAL_MATH = {
       activeMainArea: Math.round(activeMainArea * 10) / 10,
       activeHsArea: Math.round(activeHsArea * 10) / 10,
       sailPowerRatioPercent: Math.round(sailPowerRatio * 100),
+      waveHeightM: waveHeightM,
+      wavePeriodS: wavePeriodS,
+      waveDirection: waveDirection,
+      waveSpeedLossPercent: Math.round(waveSpeedLossPercent),
       maxPolarSpeed: maxPolar.maxSpeed,
       maxPolarTwa: maxPolar.twa,
       maxPolarTws: maxPolar.tws,

@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2026-09-15-4">
+  <link rel="stylesheet" href="styles.css?v=2026-09-17-1">
 </head>
 <body>
 
@@ -339,6 +339,58 @@
               </div>
             </div>
 
+            <!-- Sea State Group -->
+            <div class="sim-section-box">
+              <div class="sim-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 15c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0"></path>
+                  <path d="M2 20c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0"></path>
+                </svg>
+                <span>Sea State</span>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simWaveHeightSelect">
+                  <span>Significant Wave Height</span>
+                  <span id="simWaveHeightDesc" class="config-desc">Slight sea</span>
+                </label>
+                <select id="simWaveHeightSelect" class="sim-select-dropdown" aria-label="Significant Wave Height">
+                  <option value="0">Calm (0 m)</option>
+                  <option value="0.5" selected>Slight (0.5 m)</option>
+                  <option value="1.5">Moderate (1.5 m)</option>
+                  <option value="3">Rough (3 m)</option>
+                  <option value="5">Very Rough (5 m)</option>
+                  <option value="7.5">High Sea (7.5 m)</option>
+                  <option value="10">Very High Sea (10 m)</option>
+                </select>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simWavePeriodSelect">
+                  <span>Dominant Wave Period</span>
+                  <span id="simWavePeriodDesc" class="config-desc">Moderate period</span>
+                </label>
+                <select id="simWavePeriodSelect" class="sim-select-dropdown" aria-label="Dominant Wave Period">
+                  <option value="4">4 s - Short and steep</option>
+                  <option value="6">6 s - Short</option>
+                  <option value="8" selected>8 s - Moderate</option>
+                  <option value="10">10 s - Long swell</option>
+                  <option value="14">14 s - Ocean swell</option>
+                </select>
+              </div>
+              <div class="sim-config-group">
+                <label class="sim-config-label" for="simWaveDirectionSelect">
+                  <span>Waves Relative to Bow</span>
+                  <span id="simWaveDirectionDesc" class="config-desc">Head seas</span>
+                </label>
+                <select id="simWaveDirectionSelect" class="sim-select-dropdown" aria-label="Wave Direction Relative to Bow">
+                  <option value="ahead" selected>Ahead (0°)</option>
+                  <option value="bow">Bow (45°)</option>
+                  <option value="beam">Beam (90°)</option>
+                  <option value="quartering">Quartering (135°)</option>
+                  <option value="following">Following (180°)</option>
+                </select>
+              </div>
+            </div>
+
             <!-- Sails & Reefing Controls Group -->
             <div class="sim-section-box">
               <div class="sim-section-header">
@@ -545,7 +597,7 @@
 
   <!-- Scripts -->
   <script src="data.js?v=2026-09-14-1"></script>
-  <script src="calculations.js?v=2026-09-15-5"></script>
-  <script src="app.js?v=2026-09-15-20"></script>
+  <script src="calculations.js?v=2026-09-17-1"></script>
+  <script src="app.js?v=2026-09-17-1"></script>
 </body>
 </html>

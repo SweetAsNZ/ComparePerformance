@@ -1141,6 +1141,7 @@ body {
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 1.75rem;
+  min-width: 0;
 }
 
 @media (max-width: 1100px) {
@@ -1153,6 +1154,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
+}
+
+.vpp-telemetry-panel,
+.vpp-results-grid,
+.vpp-boat-card {
+  min-width: 0;
 }
 
 .sim-section-box {
@@ -1429,7 +1437,21 @@ body {
 }
 
 .vpp-spec-row .name { color: var(--text-secondary); }
-.vpp-spec-row .val { font-family: var(--font-mono); font-weight: 600; color: #fff; }
+.vpp-spec-row .val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #fff;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .main-wrapper { padding: 0.75rem; }
+  .section-card { padding: 1rem; }
+  .sim-section-box { padding: 1rem; }
+  .sim-config-label { align-items: flex-start; gap: 0.5rem; }
+  .config-desc { text-align: right; }
+}
 
 .vpp-safety-alert {
   padding: 0.5rem 0.75rem;
@@ -1443,6 +1465,8 @@ body {
 .vpp-safety-alert.Under-canvassed { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
 .vpp-safety-alert.Overpowered { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
 .vpp-safety-alert.Overpowered---Warning, .vpp-safety-alert.Hazardous-Rig-Load { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.vpp-safety-alert.Heavy-Seas { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+.vpp-safety-alert.Severe-Sea-State { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
 .vpp-safety-alert.Bare-Poles { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); }
 
 /* Math & Formulas Guide */
