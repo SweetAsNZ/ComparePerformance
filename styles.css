@@ -1814,6 +1814,10 @@ body {
   display: none;
 }
 
+.equipment-staging-wrap.is-collapsed .equipment-table-container {
+  display: none;
+}
+
 .equipment-staging-header {
   display: flex;
   justify-content: space-between;
@@ -2137,6 +2141,54 @@ body {
 .eq-maintenance-hint {
   color: var(--text-muted);
   font-size: 0.72rem;
+}
+
+.eq-charter-badge {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.76rem;
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  max-width: 28rem;
+}
+
+.eq-charter-badge summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.eq-charter-badge.eq-charter-warn {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.eq-charter-badge.eq-charter-ok {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+}
+
+.eq-charter-stars {
+  letter-spacing: 0.05em;
+}
+
+.eq-charter-verdict {
+  margin: 0.4rem 0;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.eq-charter-criteria {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.eq-charter-criteria li.is-match {
+  color: inherit;
+  font-weight: 600;
 }
 
 .eq-empty-note {

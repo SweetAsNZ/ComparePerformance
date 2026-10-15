@@ -26,6 +26,8 @@
   const ASKING_PRICE_KEY = 'cc_equipment_asking_prices_v1';
   const MODEL_BOAT_KEY = 'cc_equipment_model_boat_v1';
   const MAINTENANCE_KEY = 'cc_equipment_maintenance_v1';
+  const CABINS_KEY = 'cc_equipment_cabins_v1';
+  const NICKNAME_KEY = 'cc_equipment_nicknames_v1';
   const PDFJS_MODULE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.min.mjs';
   const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.worker.min.mjs';
 
@@ -44,6 +46,13 @@
     'Safety & Liferaft': 12, 'Galley & Appliances': 10, 'Air Con & Heating': 10,
     'Watermaker': 12, 'Plumbing & Pumps': 10, 'Tender & Outboard': 10, 'Davits': 15,
     'Upholstery & Interior': 12, 'Other': 10
+  };
+
+  // Running-hours life defaults for machinery that's really "due" by hours of use, not calendar
+  // age (e.g. a 10-year-old engine with 500 hours is nowhere near due). Only engines/generators
+  // get a default here; everything else relies on the age-based life expectancy above.
+  const CATEGORY_LIFE_HOURS_DEFAULTS = {
+    'Engines & Drivetrain': 5000, 'Generator': 5000
   };
 
   // Ordered keyword rules used to guess a category from an item name when none is supplied.
@@ -72,7 +81,7 @@
   // maintenance history entry, purely from keywords in its name/description text. This lets the
   // user import a batch of mixed PDFs/CSVs without picking a kind up front; each row's guess is
   // shown (and editable) in the staging table before anything is added to a boat.
-  const MAINTENANCE_GUESS_RE = /\b(service(d|s)?|repair(ed|s)?|replace(d|s|ment)?|inspect(ed|ion|s)?|overhaul(ed|s)?|rebuil[dt]|maintenance|antifoul(ed|ing)?|survey(ed)?|oil change|haul[- ]?out|anodes?|zincs?|greas(e|ed|ing)|tuned|calibrat(ed|ion)|repack(ed)?|serviced|descaled?)\b/i;
+  const MAINTENANCE_GUESS_RE = /\b(service(d|s)?|repair(ed|s)?|replace(d|s|ment)?|inspect(ed|ion|s)?|overhaul(ed|s)?|rebuil[dt]|maintenance|antifoul(ed|ing)?|survey(ed)?|oil change|haul[- ]?out|tuned|calibrat(ed|ion)|repack(ed)?|serviced|descaled?)\b/i;
   const SPARE_GUESS_RE = /\bspares?\b|\bback[- ]?up\b|\bspare (kit|part|set)s?\b/i;
 
   function classifyKind(text) {
@@ -87,10 +96,13 @@
     askingPrices: loadJson(ASKING_PRICE_KEY, {}),  // { [boatId]: number }
     modelBoatId: loadJson(MODEL_BOAT_KEY, null),   // boatId nominated as the "best equipped" model (manual override)
     maintenanceLog: loadJson(MAINTENANCE_KEY, {}), // { [boatId]: MaintenanceEntry[] }
+    cabins: loadJson(CABINS_KEY, {}),              // { [boatId]: number } - actual cabin count of this specific real boat (used for Charter Boat detection)
+    nicknames: loadJson(NICKNAME_KEY, {}),         // { [boatId]: string } - this specific real boat's own name (e.g. "Seaduction"), auto-detected from an imported folder name or entered manually
     pendingImport: [],                             // staged rows (mixed kinds) awaiting review/commit
     activeSlot: 1,                                 // which boat slot (1/2/3) new/imported rows go to
     activeKind: 'equipment',                       // 'equipment' | 'spare' | 'maintenance' - used only for the "+ Add row" manual button
-    cardSubTab: {}                                 // { [boatId]: 'equipment' | 'spare' | 'maintenance' } (UI only, not persisted)
+    cardSubTab: {},                                // { [boatId]: 'equipment' | 'spare' | 'maintenance' } (UI only, not persisted)
+    stagingCollapsed: false                        // whether the (potentially huge) staging table is minimized, keeping just the header/buttons visible
   };
 
   const elements = {};
@@ -111,6 +123,8 @@
   function saveAskingPrices() { localStorage.setItem(ASKING_PRICE_KEY, JSON.stringify(equipmentState.askingPrices)); }
   function saveModelBoat() { localStorage.setItem(MODEL_BOAT_KEY, JSON.stringify(equipmentState.modelBoatId)); }
   function saveMaintenanceLog() { localStorage.setItem(MAINTENANCE_KEY, JSON.stringify(equipmentState.maintenanceLog)); }
+  function saveCabins() { localStorage.setItem(CABINS_KEY, JSON.stringify(equipmentState.cabins)); }
+  function saveNicknames() { localStorage.setItem(NICKNAME_KEY, JSON.stringify(equipmentState.nicknames)); }
 
   function uid() { return 'eq_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -163,6 +177,9 @@
   }
 
   function defaultLifeForCategory(cat) { return CATEGORY_LIFE_DEFAULTS[cat] || 10; }
+
+  // 0 (not 10) is the right "no default" here: most categories simply aren't tracked by hours.
+  function defaultLifeHoursForCategory(cat) { return CATEGORY_LIFE_HOURS_DEFAULTS[cat] || 0; }
 
   function showToastLocal(msg) {
     const el = document.getElementById('toastNotice');
@@ -238,9 +255,11 @@
     const installCost = Number(item.installCost) || 0;
     const totalCost = rrp + installCost;
     const lifeYears = Number(item.lifeYears) || 0;
+    const hours = item.hours !== '' && item.hours != null ? Number(item.hours) : null;
+    const lifeHours = Number(item.lifeHours) || 0;
 
     let ageYears = null, remainingYears = null, depreciationFraction = 0, currentValue = totalCost,
-      status = 'unknown', dueDate = null;
+      status = 'unknown', dueDate = null, hoursFraction = null, remainingHours = null;
 
     if (item.installDate) {
       const installed = new Date(item.installDate);
@@ -259,8 +278,26 @@
       }
     }
 
+    // Running-hours wear (engines, generators, etc.) takes over from calendar age whenever
+    // actual hours have been logged: a low-hours engine on an old boat genuinely isn't due just
+    // because years have passed, and a heavily-used one can be due well before its "age" life
+    // expectancy would suggest. Hours, when tracked, are the authoritative replacement signal.
+    if (hours !== null && lifeHours > 0) {
+      hoursFraction = Math.min(1, Math.max(0, hours / lifeHours));
+      remainingHours = Math.max(0, lifeHours - hours);
+      depreciationFraction = hoursFraction;
+      currentValue = totalCost * (1 - hoursFraction);
+      const dueSoonHoursThreshold = Math.max(250, lifeHours * 0.15);
+      if (hoursFraction >= 1) status = 'overdue';
+      else if (remainingHours <= dueSoonHoursThreshold) status = 'due-soon';
+      else status = 'ok';
+    }
+
     const accruedDepreciation = totalCost - currentValue;
-    return { totalCost, ageYears, remainingYears, depreciationFraction, currentValue, accruedDepreciation, status, dueDate };
+    return {
+      totalCost, ageYears, remainingYears, depreciationFraction, currentValue, accruedDepreciation,
+      status, dueDate, hoursFraction, remainingHours
+    };
   }
 
   // ---------------------------------------------------------------------
@@ -282,7 +319,16 @@
 
   function normalizeKey(k) { return String(k).toLowerCase().replace(/[^a-z0-9]/g, ''); }
 
-  function mapRowUniversal(obj, source, defaultSourceNote) {
+  // Lets a telling file name (e.g. "Spares List.pdf") nudge classification when a line's own
+  // wording isn't distinctive enough to tell equipment apart from spares/maintenance history.
+  function kindHintFromFilename(name) {
+    if (!name) return '';
+    if (/\bspares?\b/i.test(name)) return 'spare';
+    if (/\b(maintenance|service\s*log|service\s*history|repairs?)\b/i.test(name)) return 'maintenance';
+    return '';
+  }
+
+  function mapRowUniversal(obj, source, defaultSourceNote, kindHint) {
     const norm = {};
     Object.keys(obj).forEach(k => { norm[normalizeKey(k)] = obj[k]; });
     const pick = (...keys) => {
@@ -299,19 +345,24 @@
     const installDate = parseDateFlexible(pick('installdate', 'dateinstalled', 'date', 'purchased', 'purchasedate', 'fitted', 'servicedate', 'maintenancedate', 'performed'));
     const lifeRaw = pick('lifeyears', 'lifeexpectancy', 'lifeexpectancyyears', 'expectedlife', 'lifespan', 'usefullife', 'shelflife');
     const lifeYears = lifeRaw !== '' ? (parseFloat(lifeRaw) || defaultLifeForCategory(category)) : defaultLifeForCategory(category);
+    const hoursRaw = pick('hours', 'enginehours', 'runninghours', 'currenthours', 'hourscurrent', 'hourmeter');
+    const hours = hoursRaw !== '' ? (parseFloat(hoursRaw) || 0) : '';
+    const lifeHoursRaw = pick('lifehours', 'lifeexpectancyhours', 'hourslifeexpectancy', 'expectedlifehours', 'tbohours', 'overhaulhours');
+    const lifeHours = lifeHoursRaw !== '' ? (parseFloat(lifeHoursRaw) || 0) : defaultLifeHoursForCategory(category);
     const notes = pick('notes', 'comment', 'comments', 'remarks');
     // Provenance is worked out automatically - a "Source"/"Link" column in the file if present,
     // otherwise the originating file name/path or a URL detected in pasted text (see callers below).
     const sourceNote = pick('source', 'sourcenote', 'seenat', 'link', 'url') || defaultSourceNote || '';
     const explicitKind = normalizeKey(pick('kind'));
-    const kind = ['equipment', 'spare', 'maintenance'].includes(explicitKind) ? explicitKind : classifyKind(name + ' ' + category);
+    let kind = ['equipment', 'spare', 'maintenance'].includes(explicitKind) ? explicitKind : classifyKind(name + ' ' + category);
+    if (kind === 'equipment' && kindHint) kind = kindHint;
     return {
       id: uid(), kind, name, category, rrp, installCost, installDate,
-      lifeYears, notes, ideal: false, source: source || 'import', sourceNote
+      lifeYears, hours, lifeHours, notes, ideal: false, source: source || 'import', sourceNote
     };
   }
 
-  function parseCSV(text, defaultSourceNote) {
+  function parseCSV(text, defaultSourceNote, kindHint) {
     const lines = text.split(/\r?\n/).filter(l => l.trim().length);
     if (!lines.length) return [];
     const headers = splitCsvLine(lines[0]).map(h => h.toLowerCase());
@@ -321,44 +372,76 @@
       if (cols.every(c => !c)) continue;
       const obj = {};
       headers.forEach((h, idx) => { obj[h] = cols[idx] !== undefined ? cols[idx] : ''; });
-      rows.push(mapRowUniversal(obj, 'csv', defaultSourceNote));
+      rows.push(mapRowUniversal(obj, 'csv', defaultSourceNote, kindHint));
     }
     return rows;
   }
 
-  // Fallback heuristic parser for free-form text (PDF text / plain pasted text):
-  // finds lines containing a currency amount, treats the text before it as the item/description,
-  // auto-classifies each row as equipment / spare / maintenance from keywords, and always tries to
-  // pull a date out of the line (useful for both an install date and a maintenance log date).
-  function parseFreeText(text, defaultSourceNote) {
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  // Cleans up a parsed line fragment: strips PDF-decoding mojibake/control characters and
+  // collapses whitespace, since this text ends up as an editable item/description name.
+  function cleanFragment(s) {
+    return String(s || '').replace(/[\uFFFD\u0000-\u001F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  const SKIPPABLE_LINE_RE = /^(page \d+(\s*of\s*\d+)?|subtotal|total|gst|vat|tax invoice|invoice(\s*(no\.?|number))?|quote(\s*(no\.?|number))?|description|qty|quantity|category\s+sub\s*category\s+item\s*description?)$/i;
+
+  // Finds a currency amount in a line of text: $, £, €, a currency code (USD/NZD/AUD/GBP/EUR/CAD)
+  // either side of the number, or a plain decimal amount (e.g. "1,850.00") commonly used in
+  // invoices that don't repeat a currency symbol on every line.
+  const AMOUNT_RE = /(?:[$£€]\s?\d[\d,]*(?:\.\d{1,2})?)|(?:\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|NZD|AUD|GBP|EUR|CAD)\b)|(?:\b(?:USD|NZD|AUD|GBP|EUR|CAD)\s?\d[\d,]*(?:\.\d{1,2})?\b)|(?:\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b)|(?:\b\d+\.\d{2}\b)/gi;
+  // A line that is *only* a currency amount, with nothing else on it - used to fold a stray
+  // price line onto the preceding title/description line (common in div/card-based listing
+  // layouts once stripped to text, where the title and price sit in separate sibling elements).
+  const STANDALONE_AMOUNT_RE = new RegExp('^(?:' + AMOUNT_RE.source + ')$', 'i');
+
+  // Parses free-form text (PDF text / plain pasted text) into candidate rows. Lines with a
+  // recognizable currency amount use the text before it as the item/description and the amount
+  // as RRP/cost; lines with no price at all (common for equipment/spares lists that don't itemize
+  // cost) still become an editable row with RRP $0, rather than being silently dropped - a quote,
+  // survey, or spares list with no dollar figures should never produce "no rows found".
+  function parseFreeText(text, defaultSourceNote, kindHint) {
+    const rawLines = text.split(/\r?\n/).map(l => cleanFragment(l)).filter(Boolean);
+    const lines = [];
+    rawLines.forEach(l => {
+      if (STANDALONE_AMOUNT_RE.test(l) && lines.length) lines[lines.length - 1] += ' ' + l;
+      else lines.push(l);
+    });
     const rows = [];
-    const amountRe = /\$\s?[\d,]+(?:\.\d{1,2})?/g;
     const dateRe = /\b(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4})\b/i;
+    let prevLine = '';
     lines.forEach(rawLine => {
       // Strip any URL out of the line itself (it's already captured separately as the source),
       // so it doesn't clutter the auto-derived item name.
-      const line = rawLine.replace(URL_RE, '').replace(/\s{2,}/g, ' ').trim();
-      if (!line) return;
-      if (/^(page \d+|subtotal|^total$|gst|tax invoice)\b/i.test(line) && !/\$/.test(line)) return;
-      const amounts = line.match(amountRe);
-      if (!amounts || !amounts.length) return;
-      const firstIdx = line.indexOf(amounts[0]);
-      let name = line.slice(0, firstIdx).replace(/[-:|\t]+$/, '').trim();
-      if (!name) name = line.replace(amounts[0], '').trim().slice(0, 60);
+      const line = cleanFragment(rawLine.replace(URL_RE, ''));
+      if (!line || line.length < 2 || line === prevLine) return;
+      prevLine = line;
+      if (SKIPPABLE_LINE_RE.test(line)) return;
+
+      const amounts = line.match(AMOUNT_RE);
+      let name, rrp = 0, installCost = 0;
+      if (amounts && amounts.length) {
+        const firstIdx = line.indexOf(amounts[0]);
+        name = cleanFragment(line.slice(0, firstIdx).replace(/[-:|\t]+$/, ''));
+        if (!name) name = cleanFragment(line.replace(amounts[0], ''));
+        rrp = parseMoney(amounts[0]);
+        installCost = amounts.length > 1 ? parseMoney(amounts[1]) : 0;
+      } else {
+        name = line;
+      }
+      name = name.slice(0, 80);
       if (!name) name = 'Unnamed item';
       const category = guessCategory(name);
       const dateMatch = line.match(dateRe);
+      let kind = classifyKind(name + ' ' + category);
+      if (kind === 'equipment' && kindHint) kind = kindHint;
       rows.push({
-        id: uid(), kind: classifyKind(name + ' ' + category), name, category,
-        rrp: parseMoney(amounts[0]),
-        installCost: amounts.length > 1 ? parseMoney(amounts[1]) : 0,
+        id: uid(), kind, name, category, rrp, installCost,
         installDate: dateMatch ? parseDateFlexible(dateMatch[0]) : '',
         lifeYears: defaultLifeForCategory(category), notes: '', ideal: false, source: 'parsed',
         sourceNote: defaultSourceNote || ''
       });
     });
-    return rows;
+    return rows.slice(0, 300); // safety cap for pathologically long documents
   }
 
   const URL_RE = /\bhttps?:\/\/[^\s<>"')]+/ig;
@@ -370,9 +453,52 @@
     return m ? m[0].replace(/[.,;:]+$/, '') : '';
   }
 
+  // Detects whether pasted content is markup (a copied HTML snippet, or a whole page's source
+  // pasted in via "View Page Source") rather than plain visible text, so it can be stripped down
+  // to readable text first instead of being fed straight into the line-based text parser (which
+  // would otherwise choke on tags, inline scripts/styles and attributes).
+  function looksLikeHtml(str) {
+    const s = String(str || '');
+    if (/<!doctype html|<html[\s>]|<body[\s>]|<head[\s>]/i.test(s)) return true;
+    const tagMatches = s.match(/<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?>/gi);
+    return !!tagMatches && tagMatches.length >= 8;
+  }
+
+  // Strips a pasted HTML document/snippet down to its visible text, dropping non-visible
+  // elements (script/style/head/etc.) and inserting line breaks after block-level elements so
+  // rows of a listing/table don't all run together into one unusable line.
+  function stripHtmlToText(html) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('script, style, noscript, svg, head, template').forEach(el => el.remove());
+      const BLOCK_TAGS = new Set(['DIV', 'P', 'LI', 'TR', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+        'BR', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'UL', 'OL', 'TABLE', 'ASIDE']);
+      doc.body.querySelectorAll('*').forEach(el => {
+        if (BLOCK_TAGS.has(el.tagName)) el.insertAdjacentText('afterend', '\n');
+      });
+      return doc.body.textContent || '';
+    } catch (e) {
+      return html;
+    }
+  }
+
   function parsePastedContent(raw) {
     if (!raw || !raw.trim()) return [];
-    const defaultSourceNote = findUrlInText(raw);
+    const isHtmlDoc = looksLikeHtml(raw);
+    // For a full page's HTML source, prefer its canonical URL/title over the first URL anywhere
+    // in the markup (which is often a script/stylesheet/CDN link, not the page itself).
+    let defaultSourceNote = '';
+    if (isHtmlDoc) {
+      try {
+        const doc = new DOMParser().parseFromString(raw, 'text/html');
+        const canonical = doc.querySelector('link[rel="canonical"]')?.href
+          || doc.querySelector('meta[property="og:url"]')?.content
+          || '';
+        defaultSourceNote = canonical || doc.title || findUrlInText(raw);
+      } catch (e) { defaultSourceNote = findUrlInText(raw); }
+    } else {
+      defaultSourceNote = findUrlInText(raw);
+    }
 
     if (/<table[\s>]/i.test(raw)) {
       try {
@@ -417,7 +543,7 @@
       }
     }
 
-    return parseFreeText(raw, defaultSourceNote);
+    return parseFreeText(isHtmlDoc ? stripHtmlToText(raw) : raw, defaultSourceNote);
   }
 
   async function ensurePdfJs() {
@@ -433,7 +559,7 @@
     return mod;
   }
 
-  async function parsePdfFile(file, defaultSourceNote) {
+  async function parsePdfFile(file, defaultSourceNote, kindHint) {
     const pdfjsLib = await ensurePdfJs();
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
@@ -450,7 +576,39 @@
       const lines = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]).map(([, parts]) => parts.join(' '));
       fullText += lines.join('\n') + '\n';
     }
-    return parseFreeText(fullText, defaultSourceNote);
+    if (!fullText.trim()) {
+      throw new Error('No selectable text found in this PDF (it may be a scanned image) - try manual entry instead.');
+    }
+    return parseFreeText(fullText, defaultSourceNote, kindHint);
+  }
+
+  function escapeRegExp(s) {
+    return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // Strips accents/diacritics so folder-name matching isn't thrown off by minor spelling
+  // differences (e.g. a folder typed as "Helia" should still match the model name "Hélia").
+  function foldDiacritics(s) {
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  // Works out this specific real boat's own name (e.g. "Seaduction") from a folder it was
+  // imported from (e.g. "FP Saona 47 Seaduction") by stripping the make/model/length portion and
+  // keeping whatever's left over - per the user's own description of how these folders are named.
+  function extractBoatNicknameFromFolderName(folderName, boat) {
+    if (!folderName || !boat) return '';
+    let remainder = ' ' + foldDiacritics(folderName) + ' ';
+    const manufacturer = foldDiacritics(boat.manufacturer || '');
+    const manufWords = manufacturer.split(/\s+/).filter(Boolean);
+    const manufAbbrev = manufWords.map(w => w[0]).join('');
+    [manufacturer, manufAbbrev, foldDiacritics(boat.name || '')].forEach(token => {
+      if (token) remainder = remainder.replace(new RegExp('\\b' + escapeRegExp(token) + '\\b', 'ig'), ' ');
+    });
+    // Fallback in case the model token didn't match exactly (different spacing): strip a
+    // standalone length-like number (e.g. "47", "45ft") that's still left over.
+    remainder = remainder.replace(/\b\d{2,3}(?:\.\d+)?\s*(?:ft|')?\b/i, ' ');
+    remainder = remainder.replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    return remainder;
   }
 
   async function handleFileInput(e) {
@@ -464,26 +622,30 @@
         // the best available provenance is the file's name, or its relative path if a folder of
         // files was selected (webkitRelativePath, e.g. "SurveyDocs/engine-quote.pdf").
         const fileSourceNote = file.webkitRelativePath || file.name;
+        const kindHint = kindHintFromFilename(file.name);
         try {
           let rows = [];
           if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
             if (files.length > 1) showToastLocal(`Parsing ${file.name}…`);
             else showToastLocal('Parsing PDF…');
-            rows = await parsePdfFile(file, fileSourceNote);
+            rows = await parsePdfFile(file, fileSourceNote, kindHint);
           } else {
             const text = await file.text();
-            rows = parseCSV(text, fileSourceNote);
+            rows = parseCSV(text, fileSourceNote, kindHint);
           }
           allRows.push(...rows);
-          if (!rows.length) failed.push(file.name);
+          if (!rows.length) failed.push(`${file.name} (empty)`);
         } catch (err) {
-          failed.push(file.name);
+          failed.push(`${file.name} (${err && err.message ? err.message : 'error'})`);
         }
       }
-      if (!allRows.length) { showToastLocal('No rows found in those file(s). Try manual entry instead.'); return; }
+      if (!allRows.length) {
+        showToastLocal(failed.length ? `Could not parse any rows: ${failed.join('; ')}` : 'No rows found in those file(s). Try manual entry instead.');
+        return;
+      }
       stageRows(allRows);
       const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} parsed from ${files.length} file${files.length === 1 ? '' : 's'} — kind and source auto-detected per row, review below`];
-      if (failed.length) parts.push(`${failed.length} file(s) had no rows or failed: ${failed.join(', ')}`);
+      if (failed.length) parts.push(`${failed.length} file(s) had issues: ${failed.join('; ')}`);
       showToastLocal(parts.join(' — '));
     } finally {
       e.target.value = '';
@@ -496,28 +658,48 @@
   const KIND_LABELS = { equipment: 'Equipment', spare: 'Spare', maintenance: 'Maintenance' };
 
   function stageRows(rows) {
-    equipmentState.pendingImport = rows.map(r => ({ ...r, _checked: true }));
+    // Large batches (e.g. a whole narrative PDF with no itemized prices) default to unchecked so
+    // the user deliberately picks the rows worth keeping, instead of having to untick hundreds.
+    const defaultChecked = rows.length <= 40;
+    equipmentState.pendingImport = rows.map(r => ({ ...r, _checked: defaultChecked }));
+    equipmentState.stagingCollapsed = false; // always show a freshly parsed batch, even if a previous one was minimized
     renderStaging();
+  }
+
+  // Keeps the staging table's minimize/expand state in sync with the toggle button - called on
+  // every renderStaging() so a mid-review collapse isn't lost when rows are edited/re-rendered.
+  function applyStagingCollapsedState() {
+    if (!elements.stagingWrap || !elements.stagingToggleBtn) return;
+    const collapsed = equipmentState.stagingCollapsed;
+    elements.stagingWrap.classList.toggle('is-collapsed', collapsed);
+    elements.stagingToggleBtn.textContent = collapsed ? '▸ Expand' : '▾ Minimize';
+    elements.stagingToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+    elements.stagingToggleBtn.title = collapsed
+      ? 'Expand the parsed rows table back open'
+      : 'Minimize the parsed rows table (keeps the buttons above visible)';
   }
 
   function renderStaging() {
     const rows = equipmentState.pendingImport;
     elements.stagingWrap.classList.toggle('is-hidden', rows.length === 0);
+    applyStagingCollapsedState();
     if (!rows.length) { elements.stagingTable.innerHTML = ''; return; }
     const counts = rows.reduce((acc, r) => { acc[r.kind] = (acc[r.kind] || 0) + 1; return acc; }, {});
     const countSummary = ['equipment', 'spare', 'maintenance']
       .filter(k => counts[k])
       .map(k => `${counts[k]} ${KIND_LABELS[k].toLowerCase()}`)
       .join(', ');
-    elements.stagingCount.textContent = `${rows.length} parsed row${rows.length === 1 ? '' : 's'} (auto-detected: ${countSummary}) — review/fix the kind if needed, then add to Boat ${equipmentState.activeSlot}`;
+    const allChecked = rows.every(r => r._checked);
+    const largeBatchNote = rows.length > 40 && !rows.some(r => r._checked) ? ' — large batch, nothing pre-ticked: select what you want to keep' : '';
+    elements.stagingCount.textContent = `${rows.length} parsed row${rows.length === 1 ? '' : 's'} (auto-detected: ${countSummary}) — review/fix the kind if needed, then add to Boat ${equipmentState.activeSlot}${largeBatchNote}`;
 
     // One unified table for all 3 kinds: a per-row "Kind" dropdown lets the user correct the
     // auto-classification. RRP doubles as the maintenance "Cost" amount and Install Date doubles
     // as the maintenance "Date" - this keeps a single consistent layout regardless of row kind.
     elements.stagingTable.innerHTML = `
       <thead><tr>
-        <th><input type="checkbox" id="equipmentStagingAllToggle" checked></th>
-        <th>Kind</th><th>Item / Description</th><th>Category</th><th>RRP / Cost</th><th>Install Cost</th><th>Date</th><th>Life (yrs)</th>
+        <th><input type="checkbox" id="equipmentStagingAllToggle" ${allChecked ? 'checked' : ''}></th>
+        <th>Kind</th><th>Item / Description</th><th>Category</th><th>RRP / Cost</th><th>Install Cost</th><th>Date</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th>
       </tr></thead>
       <tbody>${rows.map((r, idx) => `
         <tr>
@@ -529,6 +711,8 @@
           <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="installCost" data-row-idx="${idx}" value="${r.installCost || 0}"></td>
           <td><input type="date" class="eq-input" data-field="installDate" data-row-idx="${idx}" value="${r.installDate || ''}"></td>
           <td><input type="number" min="0" step="0.5" class="eq-input eq-input-num" data-field="lifeYears" data-row-idx="${idx}" value="${r.lifeYears || 0}"></td>
+          <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="hours" data-row-idx="${idx}" value="${r.hours || ''}" title="Engine/generator running hours, if known"></td>
+          <td><input type="number" min="0" step="100" class="eq-input eq-input-num" data-field="lifeHours" data-row-idx="${idx}" value="${r.lifeHours || ''}" title="Running-hours life expectancy (engines/generators) — takes over from calendar age when set"></td>
         </tr>`).join('')}</tbody>`;
     const allToggle = document.getElementById('equipmentStagingAllToggle');
     if (allToggle) {
@@ -546,7 +730,7 @@
     if (!row) return;
     const field = t.dataset.field;
     if (field === '_checked') row._checked = t.checked;
-    else if (field === 'rrp' || field === 'installCost' || field === 'lifeYears') row[field] = parseFloat(t.value) || 0;
+    else if (field === 'rrp' || field === 'installCost' || field === 'lifeYears' || field === 'hours' || field === 'lifeHours') row[field] = parseFloat(t.value) || 0;
     else row[field] = t.value;
   }
 
@@ -608,7 +792,8 @@
       if (!equipmentState.data[boat.id]) equipmentState.data[boat.id] = [];
       equipmentState.data[boat.id].push({
         id: uid(), kind, name: kind === 'spare' ? 'New spare' : 'New item', category: 'Other', rrp: 0, installCost: 0,
-        installDate: '', lifeYears: defaultLifeForCategory('Other'), notes: '', ideal: false, source: 'manual', sourceNote
+        installDate: '', lifeYears: defaultLifeForCategory('Other'), hours: '', lifeHours: defaultLifeHoursForCategory('Other'),
+        notes: '', ideal: false, source: 'manual', sourceNote
       });
       saveData();
     }
@@ -663,8 +848,14 @@
     return [...autoItems, ...modelItems, ...starred];
   }
 
+  // Decides whether a boat's own existing item in a category should be flagged as something
+  // worth budgeting to replace: only when it's genuinely overdue (past its age or running-hours
+  // use-by date) - never simply because another boat's equivalent happens to cost more. A
+  // perfectly serviceable (if cheaper, older-spec, or lower-hours) engine or other big-ticket
+  // item is not something we're going to replace just to "match" another boat.
   function computeComparativeGap(boatId, reference) {
     const items = getComparableItems(boatId);
+    const now = new Date();
     let matched = 0;
     const gaps = [];
     let upgradeCost = 0;
@@ -673,13 +864,31 @@
       if (refItem.boatId === boatId) { matched++; return; }
       const candidates = items.filter(i => i.category === refItem.category)
         .sort((a, b) => itemTotal(b) - itemTotal(a));
-      const candidateTotal = candidates.length ? itemTotal(candidates[0]) : 0;
-      if (candidateTotal >= refTotal * 0.98) {
+
+      if (!candidates.length) {
+        // Genuinely missing this category entirely - a real equipment gap, not a "replace an
+        // existing item" question.
+        upgradeCost += refTotal;
+        gaps.push({ category: refItem.category, name: refItem.name, cost: refTotal, reason: 'missing' });
+        return;
+      }
+
+      const best = candidates[0];
+      const bestMetrics = computeItemMetrics(best, now);
+      if (bestMetrics.status !== 'overdue') {
+        // Already has a working item in this category that isn't past its use-by date - don't
+        // recommend replacing/upgrading it just because another boat's costs more.
+        matched++;
+        return;
+      }
+
+      const candidateTotal = itemTotal(best);
+      const cost = Math.max(0, refTotal - candidateTotal);
+      if (cost <= 0) {
         matched++;
       } else {
-        const cost = Math.max(0, refTotal - candidateTotal);
         upgradeCost += cost;
-        gaps.push({ category: refItem.category, name: refItem.name, cost });
+        gaps.push({ category: refItem.category, name: refItem.name, cost, reason: 'overdue' });
       }
     });
     return { matched, gaps, upgradeCost };
@@ -701,6 +910,125 @@
 
     return { rows, totalAsNew, totalAccrued, askingPrice, myBuyPrice, gapInfo, comparativePrice, referenceCount: reference.length };
   }
+
+  // ---------------------------------------------------------------------
+  // Charter Boat heuristic
+  // Flags boats whose actual (not model-range) spec looks like a typical charter fit-out: modest
+  // solar/house-bank capacity, a small tender outboard, more cabins (to sleep paying guests), a
+  // non-lithium battery bank, and no high-performance downwind sail (Code 0/D, gennaker,
+  // spinnaker, parasailor) - charter operators rarely fit these. This is only a confidence
+  // indicator, never exclusionary: "I do not want a charter boat unless the price is good and the
+  // maintenance is very good" - so a flagged boat is only worth a closer look if it's priced well
+  // below its Comparative Price AND has a solid, well-documented maintenance history.
+  // ---------------------------------------------------------------------
+  const CHARTER_SOLAR_WATTS_MAX = 2000;
+  const CHARTER_BATTERY_AH_MAX = 1000; // normalized to 12V-equivalent
+  const CHARTER_TENDER_HP_MAX = 10;
+  const CHARTER_CABINS_MIN = 4;
+
+  const SOLAR_WATT_PATTERN = /(\d[\d,]*(?:\.\d+)?)\s*w(?:att)?s?\b/i;
+  const BATTERY_AH_PATTERN = /(\d[\d,]*(?:\.\d+)?)\s*a(?:mp)?[\s-]?h(?:ours?)?\b/i;
+  const BATTERY_VOLT_RE = /\b(12|24|48)\s*v(?:olt)?s?\b/i;
+  const TENDER_HP_RE = /(\d[\d,]*(?:\.\d+)?)\s*hp\b/i;
+  const LITHIUM_RE = /lithium|life ?po ?4|li[- ]?ion/i;
+  const NON_LITHIUM_RE = /\bagm\b|\bgel\b|lead[- ]?acid|flooded|wet[- ]?cell/i;
+  // A parasailor or screecher (both specialised light-air/downwind reaching sails, like a
+  // Code 0/D/gennaker/spinnaker) is also unlikely to be found on a charter boat.
+  const CHARTER_UNLIKELY_SAIL_RE = /code\s?0\b|code\s?zero|code\s?d\b|gennaker|spinnaker|parasailor|screecher/i;
+
+  // Sums every numeric match of a (non-global) pattern found in text, e.g. "2x 200W + 1x 100W"
+  // -> 500. A fresh global RegExp is built per call so callers never have to worry about
+  // RegExp.lastIndex state leaking between invocations.
+  function sumPatternMatches(text, basePattern) {
+    const re = new RegExp(basePattern.source, basePattern.flags.includes('g') ? basePattern.flags : basePattern.flags + 'g');
+    let total = 0, m;
+    while ((m = re.exec(text))) total += parseFloat(String(m[1]).replace(/,/g, '')) || 0;
+    return total;
+  }
+
+  function extractSolarWattsTotal(items) {
+    const solarItems = items.filter(i => i.category === 'Solar & Power Mgmt' && /solar/i.test(i.name));
+    if (!solarItems.length) return null;
+    const total = solarItems.reduce((s, i) => s + sumPatternMatches(i.name, SOLAR_WATT_PATTERN), 0);
+    return total > 0 ? total : null;
+  }
+
+  function extractBatteryAh12vTotal(items) {
+    const battItems = items.filter(i => i.category === 'Electrical & Batteries' && BATTERY_AH_PATTERN.test(i.name));
+    if (!battItems.length) return null;
+    let total = 0;
+    battItems.forEach(i => {
+      const ah = sumPatternMatches(i.name, BATTERY_AH_PATTERN);
+      const voltMatch = i.name.match(BATTERY_VOLT_RE);
+      const volts = voltMatch ? parseFloat(voltMatch[1]) : 12;
+      total += ah * (volts / 12);
+    });
+    return total > 0 ? total : null;
+  }
+
+  function extractTenderHpMax(items) {
+    const tenderItems = items.filter(i => i.category === 'Tender & Outboard' && TENDER_HP_RE.test(i.name));
+    if (!tenderItems.length) return null;
+    let maxHp = 0;
+    tenderItems.forEach(i => {
+      const m = i.name.match(TENDER_HP_RE);
+      if (m) maxHp = Math.max(maxHp, parseFloat(m[1]) || 0);
+    });
+    return maxHp > 0 ? maxHp : null;
+  }
+
+  function batteryLithiumStatus(items) {
+    const battItems = items.filter(i => i.category === 'Electrical & Batteries');
+    if (!battItems.length) return 'unknown';
+    if (battItems.some(i => LITHIUM_RE.test(i.name) || LITHIUM_RE.test(i.notes || ''))) return 'lithium';
+    if (battItems.some(i => NON_LITHIUM_RE.test(i.name) || NON_LITHIUM_RE.test(i.notes || ''))) return 'non-lithium';
+    return 'unknown';
+  }
+
+  function codeSailStatus(items) {
+    const sailItems = items.filter(i => i.category === 'Sails');
+    if (!sailItems.length) return 'unknown';
+    return sailItems.some(i => CHARTER_UNLIKELY_SAIL_RE.test(i.name)) ? 'has-code-sail' : 'no-code-sail';
+  }
+
+  function computeCharterAssessment(boatId, items, finance, maintLog, overdueCount, peerComparativePrices) {
+    const cabins = equipmentState.cabins[boatId] || 0;
+    const solarWatts = extractSolarWattsTotal(items);
+    const batteryAh = extractBatteryAh12vTotal(items);
+    const tenderHp = extractTenderHpMax(items);
+    const lithiumStatus = batteryLithiumStatus(items);
+    const sailStatus = codeSailStatus(items);
+
+    const criteria = [];
+    if (solarWatts != null) criteria.push({ label: `Solar ${Math.round(solarWatts)}W (charter boats usually < ${CHARTER_SOLAR_WATTS_MAX}W)`, match: solarWatts < CHARTER_SOLAR_WATTS_MAX });
+    if (batteryAh != null) criteria.push({ label: `House bank ~${Math.round(batteryAh)}Ah @ 12V (charter boats usually < ${CHARTER_BATTERY_AH_MAX}Ah)`, match: batteryAh < CHARTER_BATTERY_AH_MAX });
+    if (tenderHp != null) criteria.push({ label: `Tender ${tenderHp}hp (charter boats usually < ${CHARTER_TENDER_HP_MAX}hp)`, match: tenderHp < CHARTER_TENDER_HP_MAX });
+    if (cabins > 0) criteria.push({ label: `${cabins} cabins (charter boats usually ${CHARTER_CABINS_MIN}+)`, match: cabins >= CHARTER_CABINS_MIN });
+    if (lithiumStatus !== 'unknown') criteria.push({ label: lithiumStatus === 'lithium' ? 'Lithium house bank' : 'Non-lithium (AGM/Gel/lead-acid) house bank', match: lithiumStatus === 'non-lithium' });
+    if (sailStatus !== 'unknown') criteria.push({ label: sailStatus === 'has-code-sail' ? 'Has a Code 0/D, gennaker, spinnaker, parasailor or screecher' : 'No Code 0/D, gennaker, spinnaker, parasailor or screecher logged', match: sailStatus === 'no-code-sail' });
+
+    const evaluated = criteria.length;
+    const matches = criteria.filter(c => c.match).length;
+    // Require real corroborating evidence (at least 2 data points, and at least half of what
+    // could be evaluated) before flagging - a single coincidental match (e.g. just "4 cabins")
+    // isn't enough on its own.
+    const flagged = evaluated >= 2 && matches >= 2 && (matches / evaluated) >= 0.5;
+    const stars = flagged ? Math.min(5, Math.max(1, Math.round((matches / evaluated) * 5))) : 0;
+
+    // "Price is good" has to be judged against the *other* boats being compared, not against this
+    // boat's own Comparative Price - that figure is derived from this boat's own asking price
+    // (My Buy Price + cost to match), so it can never independently confirm a bargain. A price is
+    // only "good" if it's meaningfully below what the other boat(s) in the comparison cost on the
+    // same like-for-like Comparative Price basis.
+    const others = (peerComparativePrices || []).filter(p => p > 0);
+    const avgOther = others.length ? others.reduce((s, p) => s + p, 0) / others.length : 0;
+    const priceIsGood = finance.comparativePrice > 0 && avgOther > 0
+      && finance.comparativePrice <= avgOther * 0.95;
+    const maintenanceIsGood = maintLog.length >= 5 && overdueCount === 0;
+
+    return { criteria, evaluated, matches, flagged, stars, priceIsGood, maintenanceIsGood, cabins };
+  }
+
 
   function renderReferenceSection() {
     const reference = buildComparativeReference(getCompareBoatIds());
@@ -737,6 +1065,7 @@
     const statusLabel = { ok: 'OK', 'due-soon': 'Due soon', overdue: 'Overdue', unknown: '—' }[metrics.status];
     const ageStr = metrics.ageYears != null ? metrics.ageYears.toFixed(1) + ' yr' : '—';
     const dueStr = metrics.dueDate ? 'due ' + metrics.dueDate.toLocaleDateString() : '';
+    const hoursNote = metrics.hoursFraction != null ? ` (${Math.round(metrics.hoursFraction * 100)}% of hours life used)` : '';
     return `
     <tr>
       <td class="eq-star-cell"><button type="button" class="eq-star-btn ${item.ideal ? 'active' : ''}" data-action="toggle-ideal" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" title="Mark as the comparison benchmark for this category">★</button></td>
@@ -748,8 +1077,10 @@
       <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="installCost" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.installCost || 0}"></td>
       <td><input type="date" class="eq-input" data-field="installDate" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.installDate || ''}"></td>
       <td><input type="number" min="0" step="0.5" class="eq-input eq-input-num" data-field="lifeYears" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.lifeYears || 0}"></td>
+      <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="hours" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.hours === '' || item.hours == null ? '' : item.hours}" title="Running hours (engines/generators) - overrides calendar age when set"></td>
+      <td><input type="number" min="0" step="100" class="eq-input eq-input-num" data-field="lifeHours" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.lifeHours || 0}" title="Running-hours life expectancy"></td>
       <td class="eq-readonly">${ageStr}</td>
-      <td><span class="eq-status-badge status-${metrics.status}">${statusLabel}</span>${dueStr ? `<div class="eq-due-date">${dueStr}</div>` : ''}</td>
+      <td><span class="eq-status-badge status-${metrics.status}">${statusLabel}</span>${dueStr ? `<div class="eq-due-date">${dueStr}${hoursNote}</div>` : (hoursNote ? `<div class="eq-due-date">${hoursNote}</div>` : '')}</td>
       <td class="eq-readonly eq-mono">${formatMoney(metrics.currentValue)}</td>
       <td><button type="button" class="eq-del-btn" data-action="delete-item" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" title="Remove item">✕</button></td>
     </tr>`;
@@ -760,10 +1091,10 @@
     return `
     <div class="equipment-table-container">
       <table class="equipment-table">
-        <thead><tr><th>★</th><th>Item</th><th>Category</th><th>RRP</th><th>Install</th><th>Installed</th><th>Life (yrs)</th><th>Age</th><th>Status</th><th>Value Today</th><th></th></tr></thead>
+        <thead><tr><th>★</th><th>Item</th><th>Category</th><th>RRP</th><th>Install</th><th>Installed</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th><th>Age</th><th>Status</th><th>Value Today</th><th></th></tr></thead>
         <tbody>${rows.length
         ? rows.map(r => renderItemRow(boatId, r.item, r.metrics)).join('')
-        : `<tr><td colspan="11" class="eq-empty-row">${emptyMessage}</td></tr>`}</tbody>
+        : `<tr><td colspan="13" class="eq-empty-row">${emptyMessage}</td></tr>`}</tbody>
       </table>
     </div>`;
   }
@@ -793,7 +1124,7 @@
     <div class="eq-maintenance-total">Total logged maintenance spend: <strong>${formatMoney(total)}</strong> <span class="eq-maintenance-hint">(reference only — doesn't affect Comparative Price)</span></div>`;
   }
 
-  function renderBoatCard(slot, boat) {
+  function renderBoatCard(slot, boat, peerComparativePrices) {
     const boatId = boat.id;
     const now = new Date();
     const allItems = getComparableItems(boatId);
@@ -806,6 +1137,8 @@
     const overdue = finance.rows.filter(r => r.metrics.status === 'overdue').length;
     const dueSoon = finance.rows.filter(r => r.metrics.status === 'due-soon').length;
     const isModel = equipmentState.modelBoatId === boatId;
+    const otherComparativePrices = (peerComparativePrices || []).filter(p => p.boatId !== boatId).map(p => p.comparativePrice);
+    const charter = computeCharterAssessment(boatId, allItems, finance, maintLog, overdue, otherComparativePrices);
 
     let countText = `${allItems.length} item${allItems.length === 1 ? '' : 's'}`;
     if (overdue) countText += ` · ${overdue} overdue`;
@@ -830,9 +1163,27 @@
     const gapListHtml = finance.gapInfo.gaps.length
       ? `<details class="eq-gap-details">
           <summary>${finance.gapInfo.gaps.length} item${finance.gapInfo.gaps.length === 1 ? '' : 's'} needed to match the comparison spec (+${formatMoney(finance.gapInfo.upgradeCost)})</summary>
-          <ul class="eq-gap-list">${finance.gapInfo.gaps.map(g => `<li><strong>${escAttr(g.category)}:</strong> needs ${escAttr(g.name)} (${formatMoney(g.cost)})</li>`).join('')}</ul>
+          <ul class="eq-gap-list">${finance.gapInfo.gaps.map(g => `<li><strong>${escAttr(g.category)}:</strong> ${g.reason === 'overdue' ? 'overdue, upgrade to' : 'missing'} ${escAttr(g.name)} (${formatMoney(g.cost)})</li>`).join('')}</ul>
         </details>`
       : (finance.referenceCount ? '<p class="eq-gap-none">Matches or exceeds the comparison spec in every logged category.</p>' : '');
+
+    let charterHtml = '';
+    if (charter.flagged) {
+      const starStr = '★'.repeat(charter.stars) + '☆'.repeat(5 - charter.stars);
+      const verdictGood = charter.priceIsGood && charter.maintenanceIsGood;
+      const reasons = [];
+      if (!charter.priceIsGood) reasons.push('the price isn\'t clearly a bargain yet (vs. Comparative Price)');
+      if (!charter.maintenanceIsGood) reasons.push('the maintenance history isn\'t well enough documented yet');
+      const verdictText = verdictGood
+        ? 'Priced well below its Comparative Price with a solid, well-documented maintenance record — worth a closer look despite the charter-style fit-out.'
+        : `Only worth considering if the price is excellent and maintenance is thoroughly documented — right now ${reasons.join(' and ')}.`;
+      charterHtml = `
+      <details class="eq-charter-badge ${verdictGood ? 'eq-charter-ok' : 'eq-charter-warn'}">
+        <summary>⚠ Possible Charter Boat <span class="eq-charter-stars" title="Confidence (${charter.matches}/${charter.evaluated} indicators)">${starStr}</span></summary>
+        <p class="eq-charter-verdict">${verdictText}</p>
+        <ul class="eq-charter-criteria">${charter.criteria.map(c => `<li class="${c.match ? 'is-match' : ''}">${c.match ? '✓' : '·'} ${escAttr(c.label)}</li>`).join('')}</ul>
+      </details>`;
+    }
 
     return `
     <div class="equipment-boat-card boat${slot}">
@@ -840,6 +1191,7 @@
         <div>
           <h3>${escAttr(boat.manufacturer + ' ' + boat.name)}${isModel ? ' <span class="model-badge">★ MODEL BOAT</span>' : ''}</h3>
           <span class="equipment-item-count">${countText}</span>
+          ${charterHtml}
         </div>
         <div class="equipment-header-actions">
           <button type="button" class="btn-icon eq-model-btn ${isModel ? 'active' : ''}" data-action="toggle-model" data-boat-id="${escAttr(boatId)}">${isModel ? '✓ Model Boat' : 'Set as Model Boat'}</button>
@@ -854,6 +1206,10 @@
         <label class="equipment-asking-row">
           <span>Asking / List Price</span>
           <input type="number" min="0" step="1000" class="eq-input eq-asking-input" data-field="askingPrice" data-boat-id="${escAttr(boatId)}" value="${finance.askingPrice || 0}">
+        </label>
+        <label class="equipment-asking-row">
+          <span>Cabins (this actual boat)</span>
+          <input type="number" min="0" step="1" class="eq-input eq-asking-input" data-field="cabins" data-boat-id="${escAttr(boatId)}" value="${charter.cabins || ''}" title="Actual cabin count of this specific boat - used for the Charter Boat indicator">
         </label>
         <div class="equipment-summary-row eq-subtle-row"><span>My Buy Price</span><span>${formatMoney(finance.myBuyPrice)}</span></div>
         ${finance.referenceCount ? `<div class="equipment-summary-row eq-subtle-row"><span>Cost to Match Comparison</span><span>+${formatMoney(finance.gapInfo.upgradeCost)}</span></div>` : ''}
@@ -879,10 +1235,13 @@
   function renderAll() {
     if (!elements.boatsGrid) return;
     updateSlotTabLabels();
-    const cards = [1, 2, 3].map(slot => {
-      const boat = getSlotBoat(slot);
-      return boat ? renderBoatCard(slot, boat) : '';
-    }).filter(Boolean);
+    const slotsWithBoats = [1, 2, 3].map(slot => ({ slot, boat: getSlotBoat(slot) })).filter(x => x.boat);
+    // Precompute every compared boat's Comparative Price once so the Charter Boat "price is good"
+    // check can judge a boat against the others in the comparison, not against its own figure.
+    const peerComparativePrices = slotsWithBoats.map(({ boat }) => ({
+      boatId: boat.id, comparativePrice: computeBoatFinancials(boat.id, boat).comparativePrice
+    }));
+    const cards = slotsWithBoats.map(({ slot, boat }) => renderBoatCard(slot, boat, peerComparativePrices));
 
     elements.boatsGrid.innerHTML = cards.length
       ? cards.join('')
@@ -916,11 +1275,17 @@
       renderAll();
       return;
     }
+    if (field === 'cabins') {
+      equipmentState.cabins[boatId] = parseInt(t.value, 10) || 0;
+      saveCabins();
+      renderAll();
+      return;
+    }
 
     const itemId = t.dataset.itemId;
     const item = getEquipmentForBoat(boatId).find(i => i.id === itemId);
     if (!item) return;
-    if (field === 'rrp' || field === 'installCost' || field === 'lifeYears') item[field] = parseFloat(t.value) || 0;
+    if (field === 'rrp' || field === 'installCost' || field === 'lifeYears' || field === 'hours' || field === 'lifeHours') item[field] = parseFloat(t.value) || 0;
     else item[field] = t.value;
     saveData();
     renderAll();
@@ -1014,6 +1379,7 @@
     elements.stagingTable = document.getElementById('equipmentStagingTable');
     elements.commitBtn = document.getElementById('equipmentCommitBtn');
     elements.discardBtn = document.getElementById('equipmentDiscardBtn');
+    elements.stagingToggleBtn = document.getElementById('equipmentStagingToggleBtn');
 
     elements.slotTabs.addEventListener('click', (e) => {
       const btn = e.target.closest('.equipment-slot-tab');
@@ -1044,6 +1410,10 @@
     elements.restoreInput.addEventListener('change', handleRestoreBackup);
     elements.commitBtn.addEventListener('click', commitStaged);
     elements.discardBtn.addEventListener('click', discardStaged);
+    elements.stagingToggleBtn.addEventListener('click', () => {
+      equipmentState.stagingCollapsed = !equipmentState.stagingCollapsed;
+      applyStagingCollapsedState();
+    });
     elements.stagingTable.addEventListener('change', onStagingChange);
 
     elements.boatsGrid.addEventListener('click', onBoatsGridClick);

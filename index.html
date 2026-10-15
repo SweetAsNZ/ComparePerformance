@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2026-09-20-1">
+  <link rel="stylesheet" href="styles.css?v=2026-10-15-2">
 </head>
 <body>
 
@@ -162,7 +162,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
         </svg>
-        Performance Indicators
+        Performance
       </button>
 
       <button class="tab-nav-btn" data-tab="tabPolars">
@@ -170,14 +170,14 @@
           <circle cx="12" cy="12" r="10"></circle>
           <path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/>
         </svg>
-        Polar Diagrams & Radar
+        Polars
       </button>
 
       <button class="tab-nav-btn" data-tab="tabSimulator">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H5a1 1 0 0 1 0-2h-.93A8 8 0 0 1 11 4.07V5a1 1 0 0 1 2 0v-.93A8 8 0 0 1 19.93 11H19a1 1 0 0 1 0 2h.93A8 8 0 0 1 13 16.93z"/>
         </svg>
-        VPP Wind Speed Simulator
+        VPP
       </button>
 
       <button class="tab-nav-btn" data-tab="tabSpecs">
@@ -186,7 +186,7 @@
           <line x1="3" y1="9" x2="21" y2="9"></line>
           <line x1="9" y1="21" x2="9" y2="9"></line>
         </svg>
-        Full Technical Specs
+        Specs
       </button>
 
       <button class="tab-nav-btn" data-tab="tabMath">
@@ -194,14 +194,14 @@
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
         </svg>
-        Mathematical Formulas
+        Formulas
       </button>
 
       <button class="tab-nav-btn" data-tab="tabEquipment">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
         </svg>
-        Equipment & Comparative Price
+        $ Comparison
       </button>
 
       <a class="tab-nav-btn" href="all-catamarans.html" title="View the speed graph for all catamarans">
@@ -662,7 +662,7 @@
               </svg>
               Equipment, Spares, Maintenance History & "Comparative Price"
             </h2>
-            <p class="section-subtitle">Catalogue each boat's equipment, spares and maintenance history (RRP, install cost, install date, life expectancy) by importing multiple PDFs/CSVs at once or pasting a listing — each row is auto-classified as Equipment, a Spare, or a Maintenance Log entry, with a chance to fix it before it's added. See what's due for replacement, and a final "Comparative Price": the asking price minus accrued depreciation, plus the cost to buy &amp; install whatever that boat is missing to match the best-equipped boat(s) you're comparing it against. Data is saved privately in this browser only.</p>
+            <p class="section-subtitle">Catalogue each boat's equipment, spares and maintenance history (RRP, install cost, install date, life expectancy — by age or, for engines/generators, by running hours) by importing multiple PDFs/CSVs at once or pasting a listing — each row is auto-classified as Equipment, a Spare, or a Maintenance Log entry, with a chance to fix it before it's added. See what's due for replacement, and a final "Comparative Price": the asking price minus accrued depreciation, plus the cost to buy &amp; install whatever that boat is genuinely <em>missing</em> or has let run <em>overdue</em> to match the best-equipped boat(s) you're comparing it against — a boat is never penalised just because another boat's equivalent item happens to cost more (engines especially aren't swapped out unless they're actually past their hours/age use-by date). Data is saved privately in this browser only.</p>
           </div>
         </div>
 
@@ -680,13 +680,18 @@
           <div class="equipment-import-methods">
             <div class="equipment-import-card">
               <h4>📄 Import PDF or CSV</h4>
-              <p>Upload any mix of quotes, surveys, invoices, or lists at once (hold Ctrl/Cmd or Shift when choosing files) — no need to sort them first. Each row is automatically detected as Equipment, a Spare, or a Maintenance Log entry from its wording, and you can fix the kind per row before adding. Its source is worked out automatically from the file name (no need to type it in). Any of these CSV column names work: Name/Description, Category, RRP/Cost/Amount, Install Cost, Install Date/Date, Life Expectancy (yrs).</p>
+              <p>Upload any mix of quotes, surveys, invoices, or lists at once (hold Ctrl/Cmd or Shift when choosing files) — no need to sort them first. Each row is automatically detected as Equipment, a Spare, or a Maintenance Log entry from its wording, and you can fix the kind per row before adding. Its source is worked out automatically from the file name (no need to type it in). Any of these CSV column names work: Name/Description, Category, RRP/Cost/Amount, Install Cost, Install Date/Date, Life Expectancy (yrs), Hours/Engine Hours (for engines/generators), Life Expectancy Hours.</p>
               <input type="file" id="equipmentFileInput" accept=".csv,.pdf,application/pdf,text/csv" multiple aria-label="Import equipment, spares or maintenance history from one or more PDF or CSV files">
+              <label class="equipment-folder-import">
+                <span>📁 Or import a whole folder</span>
+                <input type="file" id="equipmentFolderInput" webkitdirectory multiple aria-label="Import every PDF or CSV in a folder, and use the folder name to work out the boat's real name">
+              </label>
+              <p class="eq-folder-hint">If the folder is named like "FP Saona 47 Seaduction", the boat's real name ("Seaduction") is worked out automatically from whatever follows the make/model/length and shown on its card.</p>
             </div>
             <div class="equipment-import-card">
-              <h4>🌐 Research Import (paste text)</h4>
-              <p>Rather than logging into Facebook/forums automatically (which we won't do — see note below), copy the relevant post or listing text yourself from a source you're already logged into, then paste it here. Rows are auto-classified the same way as file imports, and if the pasted text includes a link, it's used as the source automatically.</p>
-              <textarea id="equipmentPasteArea" rows="3" placeholder="Paste copied table/post/listing text here…" aria-label="Paste equipment, spares or maintenance history text"></textarea>
+              <h4>🌐 Research Import (paste text or HTML)</h4>
+              <p>Rather than logging into Facebook/forums automatically (which we won't do — see note below), copy the relevant post or listing yourself from a source you're already logged into, then paste it here. You can paste plain visible text you've selected/copied, a copied HTML table, or the entire page's HTML source (e.g. Ctrl+U "View Page Source", select all, copy) — all three are detected automatically and parsed the same way. Rows are auto-classified the same way as file imports, and the source is worked out automatically (a canonical link/page title for pasted HTML, or any link found in pasted text).</p>
+              <textarea id="equipmentPasteArea" rows="3" placeholder="Paste copied text, an HTML table, or a whole page's HTML source here…" aria-label="Paste equipment, spares or maintenance history text or HTML"></textarea>
               <button type="button" id="equipmentParsePasteBtn" class="btn-icon">Parse pasted text</button>
             </div>
             <div class="equipment-import-card">
@@ -716,6 +721,7 @@
               <div class="equipment-staging-actions">
                 <button type="button" id="equipmentCommitBtn" class="btn-icon btn-primary">Add checked rows</button>
                 <button type="button" id="equipmentDiscardBtn" class="btn-icon">Discard</button>
+                <button type="button" id="equipmentStagingToggleBtn" class="btn-icon" aria-expanded="true" title="Minimize the parsed rows table (keeps the buttons above visible)">▾ Minimize</button>
               </div>
             </div>
             <div class="equipment-table-container">
