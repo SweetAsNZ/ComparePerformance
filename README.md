@@ -1,4 +1,4 @@
-# Catamaran Performance Comparator
+# Catamaran Comparison
 
 Interactive web application for comparing 3 catamaran models side-by-side using naval architecture formulas, VPP polar extrapolation, and manufacturer specifications based on [CatamaranShow.com](https://www.catamaranshow.com/comparecatamarans?key1=Fountaine+Pajot+45+Elba&key2=Fountaine+Pajot+47+Tanna&key3=Fountaine+Pajot+51+Aura).
 
@@ -33,6 +33,14 @@ Compare specific models directly via URL parameters, e.g.:
 - **Comprehensive Specifications Table**: Length, beam, draft, light/loaded displacement, sail areas, mast air draft, bridgedeck clearance, fuel/water tankage, cabins/berths, keels, helm type, steering, engines, and pricing.
 - **Metric & Imperial Toggle**: Instant unit switching.
 - **URL Query Deep Linking & Sharing**: Share exact 3-boat comparisons via URL (e.g. `?key1=Fountaine+Pajot+45+Elba&key2=Fountaine+Pajot+47+Tanna&key3=Fountaine+Pajot+51+Aura`).
+- **Equipment Inventory, Depreciation & "My Buy Price"** (tab: *Equipment & My Buy Price*):
+  - **Import from PDF, CSV, or a pasted webpage listing**: Upload a quote/invoice/spec PDF (parsed client-side via PDF.js) or a CSV (`Name, Category, RRP, Install Cost, Install Date, Life Expectancy (yrs)`), or paste a copied HTML/table/text listing from a manufacturer or broker site. Parsed rows land in a staging table for review/editing before being added to a boat.
+  - **Per-item tracking**: Name, category (auto-guessed from keywords if omitted), RRP, install cost, install date, and life expectancy (defaulted per category, e.g. engines 20 yrs, sails 10 yrs, electronics 8 yrs, batteries 6 yrs).
+  - **Age & replacement tracking**: Each item shows its age, a computed replacement-due date, and an OK / Due Soon / Overdue status badge.
+  - **Straight-line depreciation**: Each item's "value today" depreciates linearly from its as-new cost (RRP + install) to $0 at the end of its life expectancy.
+  - **"My Buy Price"**: Enter the boat's asking/list price; it's automatically reduced by the total accrued equipment depreciation to suggest a fairer buy price that accounts for equipment nearing or past replacement.
+  - **Ideal / Model Boat Builder**: Nominate your best-equipped candidate as the "Model Boat" (its whole equipment list becomes the benchmark), and/or star (★) individual stand-out items on any boat to override specific categories. Each candidate boat is then scored against this ideal spec, with a gap list and $ cost to bring it up to the ideal build.
+  - **Backup / restore**: Export/import your whole equipment catalogue as a JSON file, or export a single boat's list as CSV. All data is stored only in your browser's local storage — nothing is uploaded.
 
 ## How to Run
 

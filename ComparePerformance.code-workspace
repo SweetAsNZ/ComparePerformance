@@ -1,7 +1,15 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	]
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "chat.tools.terminal.autoApprove": {
+            "/^python ensure_local_server\\.py$/": {
+                "approve": true,
+                "matchCommandLine": true
+            }
+        }
+    }
 }

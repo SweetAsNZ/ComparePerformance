@@ -1,4 +1,4 @@
-name: Deploy Catamaran Performance Comparator to GitHub Pages
+name: Deploy Catamaran Comparison to GitHub Pages
 
 on:
   push:

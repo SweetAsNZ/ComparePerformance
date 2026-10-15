@@ -26,6 +26,16 @@
     visibleBoats: [true, true, true],
     unit: 'metric', // 'metric' | 'imperial'
     activeTab: 'indicators',
+    filters: {
+      performance: '',
+      lengthMin: '',
+      lengthMax: '',
+      priceMin: '',
+      priceMax: '',
+      bridgeMin: '',
+      bridgeMax: '',
+      material: ''
+    },
     selectedPolarTws: 16, // 8, 12, 16, 20, 25, or 'all'
     polarMaxSpeed: 25, // Zoomable polar speed scale (12 to 50 kn)
     radarZoom: 1.0, // Zoomable radar scale (0.6 to 1.8)
@@ -106,43 +116,84 @@
     simWavePeriodDesc: document.getElementById('simWavePeriodDesc'),
     simWaveDirectionDesc: document.getElementById('simWaveDirectionDesc'),
     simResultsContainer: document.getElementById('simResultsContainer'),
-    
+
+    // Filter controls
+    filterPerformance: document.getElementById('filterPerformance'),
+    filterLengthMin: document.getElementById('filterLengthMin'),
+    filterLengthMax: document.getElementById('filterLengthMax'),
+    filterPriceMin: document.getElementById('filterPriceMin'),
+    filterPriceMax: document.getElementById('filterPriceMax'),
+    filterBridgeMin: document.getElementById('filterBridgeMin'),
+    filterBridgeMax: document.getElementById('filterBridgeMax'),
+    filterMaterial: document.getElementById('filterMaterial'),
+    filterResultCount: document.getElementById('filterResultCount'),
+    btnResetFilters: document.getElementById('btnResetFilters'),
+
     toast: document.getElementById('toastNotice'),
     tabNavBtns: document.querySelectorAll('.tab-nav-btn'),
     tabPanes: document.querySelectorAll('.tab-pane')
   };
 
   /**
+   * Simple debounce helper for input events.
+   */
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  /**
    * Initialize App
    */
   function init() {
+    populateMaterialFilter();
     populateDropdowns();
     parseUrlParams();
     setupEventListeners();
+    applyFilters();
     updateAll();
   }
 
   /**
    * Populate select dropdowns with available catamaran models
    */
-  function populateDropdowns() {
-    const selects = [elements.select1, elements.select2, elements.select3];
-    
-    // Group boats by manufacturer
+  function populateDropdowns(boatList) {
+    const filteredBoats = boatList || CATAMARAN_DATABASE;
+
+    // Group filtered boats by manufacturer
     const grouped = {};
-    CATAMARAN_DATABASE.forEach(boat => {
+    filteredBoats.forEach(boat => {
       if (!grouped[boat.manufacturer]) {
         grouped[boat.manufacturer] = [];
       }
       grouped[boat.manufacturer].push(boat);
     });
 
-    const populateSelect = (select) => {
+    const populateSelect = (select, selectedBoat) => {
+      const currentValue = select.value;
       select.innerHTML = '';
+
       const emptyOption = document.createElement('option');
       emptyOption.value = '';
       emptyOption.textContent = 'No boat selected';
       select.appendChild(emptyOption);
+
+      // Preserve the currently selected boat even if it no longer matches filters
+      const selectedStillVisible = filteredBoats.some(b => b.id === currentValue);
+      if (currentValue && !selectedStillVisible && selectedBoat) {
+        const keepOption = document.createElement('option');
+        keepOption.value = selectedBoat.id;
+        keepOption.textContent = `${selectedBoat.manufacturer} ${selectedBoat.name}`;
+        select.appendChild(keepOption);
+      }
+
       for (const [manufacturer, boats] of Object.entries(grouped)) {
         const optgroup = document.createElement('optgroup');
         optgroup.label = manufacturer;
@@ -154,11 +205,151 @@
         });
         select.appendChild(optgroup);
       }
+
+      select.value = currentValue;
     };
 
-    [...selects, elements.vppSelect1, elements.vppSelect2, elements.vppSelect3]
+    const mainSelects = [elements.select1, elements.select2, elements.select3];
+    mainSelects.forEach((select, index) => {
+      populateSelect(select, state.boats[index]);
+    });
+
+    [elements.vppSelect1, elements.vppSelect2, elements.vppSelect3]
       .filter(Boolean)
-      .forEach(populateSelect);
+      .forEach(select => {
+        const currentValue = select.value;
+        const selectedBoat = CATAMARAN_DATABASE.find(b => b.id === currentValue) || null;
+        populateSelect(select, selectedBoat);
+      });
+  }
+
+  /**
+   * Determine the performance category of a boat using the same logic as the indicators.
+   */
+  function getBoatPerformanceCategory(boat) {
+    if (!boat || typeof NAVAL_MATH === 'undefined') return 'Cruiser';
+    const metrics = NAVAL_MATH.calculateBoatMetrics(boat);
+    return metrics.indicators.boatSpeed.category || 'Cruiser';
+  }
+
+  /**
+   * Extract the numeric price estimate from a boat record.
+   */
+  function parseBoatPrice(boat) {
+    if (!boat) return null;
+    const priceText = boat.avgMarketPrice || boat.priceEstimate || '';
+    const match = priceText.match(/[\d,]+/);
+    return match ? parseInt(match[0].replace(/,/g, ''), 10) : null;
+  }
+
+  /**
+   * Apply active filters and return matching boats.
+   */
+  function getFilteredBoats() {
+    const f = state.filters;
+    return CATAMARAN_DATABASE.filter(boat => {
+      if (f.performance) {
+        const perf = getBoatPerformanceCategory(boat);
+        if (perf !== f.performance) return false;
+      }
+
+      if (f.lengthMin !== '' && boat.specs.loa_m < parseFloat(f.lengthMin)) return false;
+      if (f.lengthMax !== '' && boat.specs.loa_m > parseFloat(f.lengthMax)) return false;
+
+      const price = parseBoatPrice(boat);
+      if (price !== null) {
+        if (f.priceMin !== '' && price < parseFloat(f.priceMin)) return false;
+        if (f.priceMax !== '' && price > parseFloat(f.priceMax)) return false;
+      } else if (f.priceMin !== '' || f.priceMax !== '') {
+        return false;
+      }
+
+      if (f.bridgeMin !== '' && boat.specs.bridgedeck_clearance_m < parseFloat(f.bridgeMin)) return false;
+      if (f.bridgeMax !== '' && boat.specs.bridgedeck_clearance_m > parseFloat(f.bridgeMax)) return false;
+
+      if (f.material && (boat.coreCategory || '').trim() !== f.material) return false;
+
+      return true;
+    });
+  }
+
+  /**
+   * Update the filter result count text.
+   */
+  function updateFilterResultCount(count) {
+    if (!elements.filterResultCount) return;
+    const total = CATAMARAN_DATABASE.length;
+    if (count === total) {
+      elements.filterResultCount.textContent = `Showing all ${total} boats`;
+    } else {
+      elements.filterResultCount.textContent = `Showing ${count} of ${total} boats`;
+    }
+  }
+
+  /**
+   * Populate the material/core filter dropdown with unique values from the database.
+   */
+  function populateMaterialFilter() {
+    const select = elements.filterMaterial;
+    if (!select) return;
+    const currentValue = select.value;
+    const materials = Array.from(new Set(CATAMARAN_DATABASE.map(b => (b.coreCategory || '').trim()).filter(Boolean))).sort();
+
+    select.innerHTML = '<option value="">All materials</option>';
+    materials.forEach(material => {
+      const option = document.createElement('option');
+      option.value = material;
+      option.textContent = material;
+      select.appendChild(option);
+    });
+
+    select.value = currentValue;
+  }
+
+  /**
+   * Read current filter inputs, apply them, and refresh dropdowns.
+   */
+  function applyFilters() {
+    state.filters.performance = elements.filterPerformance ? elements.filterPerformance.value : '';
+    state.filters.lengthMin = elements.filterLengthMin ? elements.filterLengthMin.value : '';
+    state.filters.lengthMax = elements.filterLengthMax ? elements.filterLengthMax.value : '';
+    state.filters.priceMin = elements.filterPriceMin ? elements.filterPriceMin.value : '';
+    state.filters.priceMax = elements.filterPriceMax ? elements.filterPriceMax.value : '';
+    state.filters.bridgeMin = elements.filterBridgeMin ? elements.filterBridgeMin.value : '';
+    state.filters.bridgeMax = elements.filterBridgeMax ? elements.filterBridgeMax.value : '';
+    state.filters.material = elements.filterMaterial ? elements.filterMaterial.value : '';
+
+    const filtered = getFilteredBoats();
+    populateDropdowns(filtered);
+    updateFilterResultCount(filtered.length);
+  }
+
+  /**
+   * Reset all filters to their default (empty) state.
+   */
+  function resetFilters() {
+    state.filters = {
+      performance: '',
+      lengthMin: '',
+      lengthMax: '',
+      priceMin: '',
+      priceMax: '',
+      bridgeMin: '',
+      bridgeMax: '',
+      material: ''
+    };
+
+    if (elements.filterPerformance) elements.filterPerformance.value = '';
+    if (elements.filterLengthMin) elements.filterLengthMin.value = '';
+    if (elements.filterLengthMax) elements.filterLengthMax.value = '';
+    if (elements.filterPriceMin) elements.filterPriceMin.value = '';
+    if (elements.filterPriceMax) elements.filterPriceMax.value = '';
+    if (elements.filterBridgeMin) elements.filterBridgeMin.value = '';
+    if (elements.filterBridgeMax) elements.filterBridgeMax.value = '';
+    if (elements.filterMaterial) elements.filterMaterial.value = '';
+
+    populateDropdowns(CATAMARAN_DATABASE);
+    updateFilterResultCount(CATAMARAN_DATABASE.length);
   }
 
   /**
@@ -277,6 +468,33 @@
 
   function setupEventListeners() {
     ensurePolarToggleControls();
+
+    // Filter controls
+    const filterInputs = [
+      elements.filterPerformance,
+      elements.filterLengthMin,
+      elements.filterLengthMax,
+      elements.filterPriceMin,
+      elements.filterPriceMax,
+      elements.filterBridgeMin,
+      elements.filterBridgeMax,
+      elements.filterMaterial
+    ];
+
+    filterInputs.forEach(input => {
+      if (!input) return;
+      input.addEventListener('change', applyFilters);
+      if (input.tagName === 'INPUT') {
+        input.addEventListener('input', debounce(applyFilters, 250));
+      }
+    });
+
+    if (elements.btnResetFilters) {
+      elements.btnResetFilters.addEventListener('click', () => {
+        resetFilters();
+        showToast('Filters reset');
+      });
+    }
 
     elements.polarLegendItems.forEach((legendItem, index) => {
       legendItem.addEventListener('click', () => toggleBoatVisibility(index));

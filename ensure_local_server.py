@@ -37,7 +37,7 @@ def start_server(host: str, port: int) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Start a local web server for the Catamaran Performance Comparator.")
+    parser = argparse.ArgumentParser(description="Start a local web server for the Catamaran Comparison app.")
     parser.add_argument("--host", default=HOST, help=f"Bind address (default: {HOST})")
     parser.add_argument("--port", type=int, default=PORT, help=f"Port to serve on (default: {PORT})")
     parser.add_argument("--open-browser", action="store_true", help="Open the local site in the default browser once it starts")
