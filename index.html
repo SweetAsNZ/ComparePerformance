@@ -201,7 +201,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
         </svg>
-        Equipment & My Buy Price
+        Equipment & Comparative Price
       </button>
 
       <a class="tab-nav-btn" href="all-catamarans.html" title="View the speed graph for all catamarans">
@@ -651,7 +651,7 @@
       </div>
     </div>
 
-    <!-- Tab 6: Equipment Inventory, Depreciation & My Buy Price -->
+    <!-- Tab 6: Equipment, Spares, Maintenance History & Comparative Price -->
     <div id="tabEquipment" class="tab-pane">
       <div class="section-card">
         <div class="section-title-wrap">
@@ -660,16 +660,16 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
               </svg>
-              Equipment Inventory & "My Buy Price"
+              Equipment, Spares, Maintenance History & "Comparative Price"
             </h2>
-            <p class="section-subtitle">Catalogue each boat's fitted equipment (RRP, install cost, install date, life expectancy) from a PDF, CSV, or pasted webpage listing. See what's due for replacement, a depreciation-adjusted "My Buy Price", and how each boat compares to your ideal spec. Data is saved privately in this browser only.</p>
+            <p class="section-subtitle">Catalogue each boat's equipment, spares and maintenance history (RRP, install cost, install date, life expectancy) by importing multiple PDFs/CSVs at once or pasting a listing — each row is auto-classified as Equipment, a Spare, or a Maintenance Log entry, with a chance to fix it before it's added. See what's due for replacement, and a final "Comparative Price": the asking price minus accrued depreciation, plus the cost to buy &amp; install whatever that boat is missing to match the best-equipped boat(s) you're comparing it against. Data is saved privately in this browser only.</p>
           </div>
         </div>
 
-        <!-- Import / Add Equipment Panel -->
+        <!-- Import / Add Equipment, Spares & Maintenance Panel -->
         <div class="equipment-import-panel">
           <div class="equipment-import-target">
-            <span>Add new / parsed equipment to:</span>
+            <span>Add new / parsed rows to:</span>
             <div class="equipment-slot-tabs" id="equipmentSlotTabs">
               <button type="button" class="equipment-slot-tab active" data-slot="1">Boat 1</button>
               <button type="button" class="equipment-slot-tab" data-slot="2">Boat 2</button>
@@ -680,21 +680,26 @@
           <div class="equipment-import-methods">
             <div class="equipment-import-card">
               <h4>📄 Import PDF or CSV</h4>
-              <p>Upload a quote, survey, invoice, or equipment list. CSV columns: Name, Category, RRP, Install Cost, Install Date, Life Expectancy (yrs).</p>
-              <input type="file" id="equipmentFileInput" accept=".csv,.pdf,application/pdf,text/csv" aria-label="Import equipment from a PDF or CSV file">
+              <p>Upload any mix of quotes, surveys, invoices, or lists at once (hold Ctrl/Cmd or Shift when choosing files) — no need to sort them first. Each row is automatically detected as Equipment, a Spare, or a Maintenance Log entry from its wording, and you can fix the kind per row before adding. Its source is worked out automatically from the file name (no need to type it in). Any of these CSV column names work: Name/Description, Category, RRP/Cost/Amount, Install Cost, Install Date/Date, Life Expectancy (yrs).</p>
+              <input type="file" id="equipmentFileInput" accept=".csv,.pdf,application/pdf,text/csv" multiple aria-label="Import equipment, spares or maintenance history from one or more PDF or CSV files">
             </div>
             <div class="equipment-import-card">
-              <h4>🌐 Paste from a webpage</h4>
-              <p>Copy a spec/price table or product listing text from the manufacturer or broker site, then paste it below.</p>
-              <textarea id="equipmentPasteArea" rows="3" placeholder="Paste copied table/text here…" aria-label="Paste equipment list text"></textarea>
+              <h4>🌐 Research Import (paste text)</h4>
+              <p>Rather than logging into Facebook/forums automatically (which we won't do — see note below), copy the relevant post or listing text yourself from a source you're already logged into, then paste it here. Rows are auto-classified the same way as file imports, and if the pasted text includes a link, it's used as the source automatically.</p>
+              <textarea id="equipmentPasteArea" rows="3" placeholder="Paste copied table/post/listing text here…" aria-label="Paste equipment, spares or maintenance history text"></textarea>
               <button type="button" id="equipmentParsePasteBtn" class="btn-icon">Parse pasted text</button>
             </div>
             <div class="equipment-import-card">
               <h4>✏️ Add manually / backup</h4>
-              <p>Add a single line item, or back up / restore your whole equipment catalogue as a file.</p>
+              <p>Add a single line item or log entry (choose its kind below), or back up / restore your whole catalogue as a file.</p>
+              <div class="equipment-slot-tabs" id="equipmentKindTabs">
+                <button type="button" class="equipment-slot-tab active" data-kind="equipment">Equipment</button>
+                <button type="button" class="equipment-slot-tab" data-kind="spare">Spare</button>
+                <button type="button" class="equipment-slot-tab" data-kind="maintenance">Maintenance Log</button>
+              </div>
               <div class="equipment-manual-actions">
-                <button type="button" id="equipmentAddManualBtn" class="btn-icon">+ Add item</button>
-                <button type="button" id="equipmentExportBackupBtn" class="btn-icon" title="Download all equipment data as a JSON backup file">⬇ Backup</button>
+                <button type="button" id="equipmentAddManualBtn" class="btn-icon">+ Add row</button>
+                <button type="button" id="equipmentExportBackupBtn" class="btn-icon" title="Download all equipment, spares and maintenance data as a JSON backup file">⬇ Backup</button>
                 <label class="btn-icon equipment-restore-label" title="Restore a previously downloaded JSON backup file">
                   ⬆ Restore
                   <input type="file" id="equipmentRestoreInput" accept=".json,application/json" hidden>
@@ -702,6 +707,7 @@
               </div>
             </div>
           </div>
+          <p class="eq-privacy-note">🔒 No automated logins or scraping: we never ask for Facebook/forum credentials or MFA codes, and nothing here fetches other websites on your behalf — you stay in control of what gets copied in.</p>
 
           <!-- Staging table for review before commit -->
           <div id="equipmentStagingWrap" class="equipment-staging-wrap is-hidden">
@@ -718,15 +724,15 @@
           </div>
         </div>
 
-        <!-- Per-boat equipment tables + depreciation summary cards -->
+        <!-- Per-boat equipment/spares/maintenance tables + Comparative Price summary cards -->
         <div class="equipment-boats-grid" id="equipmentBoatsGrid"></div>
 
-        <!-- Ideal / Model Boat Builder -->
+        <!-- Comparative benchmark: automatic best-in-class + optional manual override -->
         <div class="equipment-ideal-section">
           <div class="section-title-wrap eq-ideal-title-wrap">
             <div>
-              <h2 class="section-title">⭐ Ideal / Model Boat Builder</h2>
-              <p class="section-subtitle">Click "Set as Model Boat" on your best-equipped candidate to use its whole equipment list as the benchmark, and/or star (★) individual items on any boat to override specific categories. Other boats are then scored against this ideal spec.</p>
+              <h2 class="section-title">⭐ Comparison Spec (used to calculate Comparative Price)</h2>
+              <p class="section-subtitle">By default this is built automatically from the best-equipped item in each category across the boats you're comparing above — no setup required. Click "Set as Model Boat" on a card to use that boat's whole list as the benchmark instead, and/or star (★) individual items on any boat to override just that category.</p>
             </div>
           </div>
           <div id="equipmentIdealContent"></div>

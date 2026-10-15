@@ -1711,6 +1711,15 @@ body {
   flex-wrap: wrap;
 }
 
+.eq-privacy-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+}
+
 .equipment-slot-tabs {
   display: flex;
   gap: 0.4rem;
@@ -2067,6 +2076,67 @@ body {
 .equipment-buyprice-row strong {
   color: var(--accent-emerald);
   font-size: 1.15rem;
+}
+
+.eq-subtle-row {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.eq-subtle-row span:last-child {
+  font-family: var(--font-mono);
+}
+
+.equipment-comparative-row {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.equipment-comparative-row strong {
+  color: var(--accent-emerald);
+  font-size: 1.25rem;
+}
+
+.equipment-card-subtabs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.eq-gap-details {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  background: rgba(244, 63, 94, 0.06);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.6rem;
+}
+
+.eq-gap-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.eq-gap-details .eq-gap-list {
+  margin-top: 0.4rem;
+}
+
+.eq-maintenance-total {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.1rem;
+}
+
+.eq-maintenance-total strong {
+  color: #fff;
+  font-family: var(--font-mono);
+}
+
+.eq-maintenance-hint {
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 .eq-empty-note {
