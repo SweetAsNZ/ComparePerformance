@@ -1779,6 +1779,28 @@ body {
   color: var(--text-secondary);
 }
 
+.equipment-folder-import {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 0.5rem;
+  margin-top: 0.1rem;
+}
+
+.eq-folder-hint {
+  font-size: 0.72rem !important;
+  color: var(--text-muted) !important;
+  margin: 0 !important;
+}
+
+.eq-boat-nickname {
+  color: var(--brand-cyan);
+  font-weight: 600;
+}
+
 .equipment-import-card textarea {
   width: 100%;
   resize: vertical;

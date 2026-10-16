@@ -390,7 +390,7 @@
     return CATAMARAN_DATABASE.find(b => {
       const bKey = (b.key || '').toLowerCase().replace(/[\s\-_+]+/g, ' ');
       const bName = (b.name || '').toLowerCase().replace(/[\s\-_+]+/g, ' ');
-      const bId = (b.id || '').toLowerCase();
+      const bId = (b.id || '').toLowerCase().replace(/[\s\-_+]+/g, ' ');
       return bKey.includes(cleanQ) || cleanQ.includes(bKey) || bName.includes(cleanQ) || bId === cleanQ;
     });
   }
@@ -919,6 +919,7 @@
         <div class="boat-hero-body">
           <div class="boat-builder-name">${boat.manufacturer} • ${boat.year}</div>
           <h2 class="boat-model-name">${boat.name}</h2>
+          ${boat.dataNotes ? `<p class="model-reviews-note">${boat.dataNotes}</p>` : ''}
           <div class="boat-review-links" aria-label="Review links">
             <a href="${magazineReviewsUrl}" target="_blank" rel="noopener noreferrer">Magazine reviews</a>
             <a href="${ownerReviewsUrl}" target="_blank" rel="noopener noreferrer">Owner reviews</a>
@@ -1860,4 +1861,3 @@
     init();
   }
 })();
-

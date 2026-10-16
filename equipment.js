@@ -597,7 +597,9 @@
   // keeping whatever's left over - per the user's own description of how these folders are named.
   function extractBoatNicknameFromFolderName(folderName, boat) {
     if (!folderName || !boat) return '';
-    let remainder = ' ' + foldDiacritics(folderName) + ' ';
+    // Normalize hyphens/underscores to spaces *before* matching the manufacturer/model name, so
+    // "Saona-47-Sea-Esta" matches "Saona 47" just as well as "Saona 47 Sea Esta" would.
+    let remainder = ' ' + foldDiacritics(folderName).replace(/[-_]+/g, ' ') + ' ';
     const manufacturer = foldDiacritics(boat.manufacturer || '');
     const manufWords = manufacturer.split(/\s+/).filter(Boolean);
     const manufAbbrev = manufWords.map(w => w[0]).join('');
@@ -607,7 +609,7 @@
     // Fallback in case the model token didn't match exactly (different spacing): strip a
     // standalone length-like number (e.g. "47", "45ft") that's still left over.
     remainder = remainder.replace(/\b\d{2,3}(?:\.\d+)?\s*(?:ft|')?\b/i, ' ');
-    remainder = remainder.replace(/[-_]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    remainder = remainder.replace(/\s{2,}/g, ' ').trim();
     return remainder;
   }
 
@@ -644,6 +646,22 @@
         return;
       }
       stageRows(allRows);
+      // If a whole folder was selected (webkitRelativePath present), work out this specific real
+      // boat's own name from the folder it lives in and auto-fill it (without clobbering a name
+      // already set, whether auto-detected earlier or typed in manually).
+      const folderFile = files.find(f => f.webkitRelativePath);
+      if (folderFile) {
+        const folderName = folderFile.webkitRelativePath.split('/')[0];
+        const activeBoat = getSlotBoat(equipmentState.activeSlot);
+        if (activeBoat && !equipmentState.nicknames[activeBoat.id]) {
+          const nickname = extractBoatNicknameFromFolderName(folderName, activeBoat);
+          if (nickname) {
+            equipmentState.nicknames[activeBoat.id] = nickname;
+            saveNicknames();
+            renderAll();
+          }
+        }
+      }
       const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} parsed from ${files.length} file${files.length === 1 ? '' : 's'} — kind and source auto-detected per row, review below`];
       if (failed.length) parts.push(`${failed.length} file(s) had issues: ${failed.join('; ')}`);
       showToastLocal(parts.join(' — '));
@@ -1132,6 +1150,7 @@
     const spareItems = allItems.filter(i => i.kind === 'spare');
     const maintLog = getMaintenanceForBoat(boatId);
     const subTab = equipmentState.cardSubTab[boatId] || 'equipment';
+    const nickname = equipmentState.nicknames[boatId] || '';
 
     const finance = computeBoatFinancials(boatId, boat);
     const overdue = finance.rows.filter(r => r.metrics.status === 'overdue').length;
@@ -1189,7 +1208,7 @@
     <div class="equipment-boat-card boat${slot}">
       <div class="equipment-boat-card-header">
         <div>
-          <h3>${escAttr(boat.manufacturer + ' ' + boat.name)}${isModel ? ' <span class="model-badge">★ MODEL BOAT</span>' : ''}</h3>
+          <h3>${escAttr(boat.manufacturer + ' ' + boat.name)}${nickname ? ` — <span class="eq-boat-nickname">"${escAttr(nickname)}"</span>` : ''}${isModel ? ' <span class="model-badge">★ MODEL BOAT</span>' : ''}</h3>
           <span class="equipment-item-count">${countText}</span>
           ${charterHtml}
         </div>
@@ -1206,6 +1225,10 @@
         <label class="equipment-asking-row">
           <span>Asking / List Price</span>
           <input type="number" min="0" step="1000" class="eq-input eq-asking-input" data-field="askingPrice" data-boat-id="${escAttr(boatId)}" value="${finance.askingPrice || 0}">
+        </label>
+        <label class="equipment-asking-row">
+          <span>Boat Name (this actual boat)</span>
+          <input type="text" class="eq-input eq-asking-input" data-field="nickname" data-boat-id="${escAttr(boatId)}" value="${escAttr(nickname)}" placeholder="e.g. Seaduction" title="This specific boat's own name - auto-detected from an imported folder name (e.g. &quot;FP Saona 47 Seaduction&quot;), or type it in">
         </label>
         <label class="equipment-asking-row">
           <span>Cabins (this actual boat)</span>
@@ -1278,6 +1301,12 @@
     if (field === 'cabins') {
       equipmentState.cabins[boatId] = parseInt(t.value, 10) || 0;
       saveCabins();
+      renderAll();
+      return;
+    }
+    if (field === 'nickname') {
+      equipmentState.nicknames[boatId] = t.value.trim();
+      saveNicknames();
       renderAll();
       return;
     }
@@ -1369,6 +1398,7 @@
     elements.slotTabs = document.getElementById('equipmentSlotTabs');
     elements.kindTabs = document.getElementById('equipmentKindTabs');
     elements.fileInput = document.getElementById('equipmentFileInput');
+    elements.folderInput = document.getElementById('equipmentFolderInput');
     elements.pasteArea = document.getElementById('equipmentPasteArea');
     elements.parsePasteBtn = document.getElementById('equipmentParsePasteBtn');
     elements.addManualBtn = document.getElementById('equipmentAddManualBtn');
@@ -1400,6 +1430,7 @@
     }
 
     elements.fileInput.addEventListener('change', handleFileInput);
+    elements.folderInput.addEventListener('change', handleFileInput);
     elements.parsePasteBtn.addEventListener('click', () => {
       const rows = parsePastedContent(elements.pasteArea.value);
       if (!rows.length) { showToastLocal('No rows found in that text.'); return; }
