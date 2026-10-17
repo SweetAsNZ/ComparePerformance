@@ -713,12 +713,21 @@
             </div>
           </div>
           <p class="eq-privacy-note">🔒 No automated logins or scraping: we never ask for Facebook/forum credentials or MFA codes, and nothing here fetches other websites on your behalf — you stay in control of what gets copied in.</p>
+          <p class="eq-folder-hint">Uploading creates review rows, not saved equipment. Check the rows to keep, then click "Add checked rows to boat"; large imports start unchecked. All catalogue values are USD. Identifiable matches in the researched reference list receive editable replacement-price estimates with source links, original currency and dated exchange rates. Open "Research results" for per-unit component prices, specification conflicts or supplier-quote requirements. Partial bundles are not treated as fully priced; totals remain provisional. Review repeated history/inventory mentions to avoid duplicates. Installation, shipping and tax are not estimated. Maintenance spend is never inferred from a replacement price.</p>
+          <label class="equipment-asking-row">Currency for unlabelled import amounts (including $)
+            <select id="equipmentImportCurrency" class="eq-input">
+              <option>USD</option><option>NZD</option><option>AUD</option><option>GBP</option><option>EUR</option><option>CAD</option>
+            </select>
+          </label>
 
           <!-- Staging table for review before commit -->
           <div id="equipmentStagingWrap" class="equipment-staging-wrap is-hidden">
             <div class="equipment-staging-header">
               <span id="equipmentStagingCount">0 parsed rows</span>
               <div class="equipment-staging-actions">
+                <button type="button" id="equipmentSelectAllBtn" class="btn-icon">Select all rows</button>
+                <button type="button" id="equipmentSelectNoneBtn" class="btn-icon">Select none</button>
+                <button type="button" id="equipmentPriceStagedBtn" class="btn-icon" title="Apply the researched reference list; this does not run a live web search">Look up missing prices</button>
                 <button type="button" id="equipmentCommitBtn" class="btn-icon btn-primary">Add checked rows</button>
                 <button type="button" id="equipmentDiscardBtn" class="btn-icon">Discard</button>
                 <button type="button" id="equipmentStagingToggleBtn" class="btn-icon" aria-expanded="true" title="Minimize the parsed rows table (keeps the buttons above visible)">▾ Minimize</button>
@@ -763,6 +772,7 @@
   <script src="data.js?v=2026-10-16-4"></script>
   <script src="calculations.js?v=2026-09-17-1"></script>
   <script src="app.js?v=2026-10-16-1"></script>
-  <script src="equipment.js?v=2026-10-15-3"></script>
+  <script src="equipment-pricing.js?v=2026-10-17-3"></script>
+  <script src="equipment.js?v=2026-10-17-3"></script>
 </body>
 </html>

@@ -28,6 +28,8 @@
   const MAINTENANCE_KEY = 'cc_equipment_maintenance_v1';
   const CABINS_KEY = 'cc_equipment_cabins_v1';
   const NICKNAME_KEY = 'cc_equipment_nicknames_v1';
+  const COLLAPSED_KEY = 'cc_equipment_collapsed_v1';
+  const pricing = window.EQUIPMENT_PRICING;
   const PDFJS_MODULE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.min.mjs';
   const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.worker.min.mjs';
 
@@ -99,9 +101,12 @@
     cabins: loadJson(CABINS_KEY, {}),              // { [boatId]: number } - actual cabin count of this specific real boat (used for Charter Boat detection)
     nicknames: loadJson(NICKNAME_KEY, {}),         // { [boatId]: string } - this specific real boat's own name (e.g. "Seaduction"), auto-detected from an imported folder name or entered manually
     pendingImport: [],                             // staged rows (mixed kinds) awaiting review/commit
+    importDrafts: {},
+    importBoatId: null,
     activeSlot: 1,                                 // which boat slot (1/2/3) new/imported rows go to
     activeKind: 'equipment',                       // 'equipment' | 'spare' | 'maintenance' - used only for the "+ Add row" manual button
     cardSubTab: {},                                // { [boatId]: 'equipment' | 'spare' | 'maintenance' } (UI only, not persisted)
+    collapsedTables: loadJson(COLLAPSED_KEY, {}),
     stagingCollapsed: false                        // whether the (potentially huge) staging table is minimized, keeping just the header/buttons visible
   };
 
@@ -163,6 +168,77 @@
     if (n === null || n === undefined || isNaN(n)) return '—';
     const sign = n < 0 ? '-' : '';
     return sign + '$' + Math.round(Math.abs(n)).toLocaleString();
+  }
+
+  function importCurrency() {
+    return document.getElementById('equipmentImportCurrency')?.value || 'USD';
+  }
+
+  function importedPrice(raw, currency) {
+    const amount = parseMoney(raw);
+    const originalCurrency = pricing.currencyOf(raw, currency || importCurrency());
+    return {
+      usd: pricing.toUSD(amount, originalCurrency),
+      info: { status: 'document', amount, currency: originalCurrency, quantity: 1,
+        fxDate: pricing.fx.date, fxRate: 1 / pricing.fx.perUSD[originalCurrency],
+        fxSource: pricing.fx.source }
+    };
+  }
+
+  function enrichPrice(row) {
+    if (row.rrp > 0 || row.priceInfo || row.kind === 'maintenance') return row;
+    const estimate = pricing.lookup(row.name);
+    if (estimate) { row.rrp = estimate.usd; row.priceInfo = estimate; }
+    return row;
+  }
+
+  function renderPriceInfo(item) {
+    const info = item.priceInfo;
+    let label = item.rrp > 0 ? 'Entered USD' : 'Needs price';
+    if (info?.status === 'estimate') label = `Estimate: ${info.model}`;
+    if (info?.status === 'document') label = 'Document price';
+    if (info?.status === 'manual') label = 'Entered USD';
+    const conversion = info && info.currency && info.status !== 'manual'
+      ? `<div>${Number(info.quantity) || 1} x ${escAttr(info.currency)} ${Number(info.amount)}; ${info.currency === 'USD' ? 'no FX' : `USD rate ${Number(info.fxRate).toFixed(6)} (${escAttr(info.fxDate)})`}</div>` : '';
+    const source = info?.url && /^https?:\/\//i.test(info.url)
+      ? `<a href="${escAttr(info.url)}" target="_blank" rel="noopener noreferrer">Price source (${escAttr(info.checkedDate)})</a>` : '';
+    const fxSource = info?.currency && info.currency !== 'USD' && /^https?:\/\//i.test(info.fxSource || '')
+      ? ` <a href="${escAttr(info.fxSource)}" target="_blank" rel="noopener noreferrer">FX source</a>` : '';
+    const note = info?.note ? `<div>${escAttr(info.note)}</div>` : '';
+    const research = !(item.rrp > 0) ? pricing.research(item.name) : null;
+    const researchHtml = research ? `<details><summary>Research results (${research.components.length} priced component${research.components.length === 1 ? '' : 's'})</summary>
+      <p>${escAttr(research.explanation)}</p>
+      ${item.kind === 'maintenance' ? '<p>Replacement references only, not evidence of historical maintenance spend. Correct the row kind if this describes installed equipment instead of a maintenance event.</p>' : ''}
+      ${research.components.map(ref => `<div><strong>${escAttr(ref.model)}:</strong> ${escAttr(ref.currency)} ${ref.amount} / unit = ${formatMoney(ref.usd)} USD.
+        <a href="${escAttr(ref.url)}" target="_blank" rel="noopener noreferrer">Price source (${escAttr(ref.checkedDate)})</a>
+        ${ref.currency !== 'USD' ? `<a href="${escAttr(ref.fxSource)}" target="_blank" rel="noopener noreferrer">FX (${escAttr(ref.fxDate)})</a>` : ''}
+        ${escAttr(ref.note)}</div>`).join('')}
+      ${research.notes.map(ref => `<p>${escAttr(ref.model)}: ${escAttr(ref.note)}${ref.url ? ` <a href="${escAttr(ref.url)}" target="_blank" rel="noopener noreferrer">Reference</a>` : ''}</p>`).join('')}
+      </details>` : '';
+    return `<div class="eq-price-note">${escAttr(label)}${conversion}${source}${fxSource}${note}${researchHtml}</div>`;
+  }
+
+  function renderQuoteEditor(item, attributes) {
+    if (item.kind === 'maintenance') return '';
+    return `<details class="eq-price-note"><summary>Enter researched price</summary>
+      <label>Quoted amount <input type="number" min="0" step="0.01" class="eq-input" data-field="quoteAmount" ${attributes} value="${escAttr(item.quoteAmount ?? '')}"></label>
+      <label>Currency <select class="eq-input" data-field="quoteCurrency" ${attributes}>${Object.keys(pricing.fx.perUSD).map(c => `<option ${c === (item.quoteCurrency || 'USD') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+      <label>Price source URL <input type="url" class="eq-input" data-field="quoteUrl" ${attributes} value="${escAttr(item.quoteUrl || '')}"></label>
+      <button type="button" class="btn-icon" data-action="apply-quote" ${attributes}>Convert / apply USD</button>
+      <span>Enter the total for this row's quantity. FX: ${pricing.fx.date}.</span>
+    </details>`;
+  }
+
+  function applyQuote(item) {
+    try {
+      if (item.quoteAmount === '' || item.quoteAmount == null) throw new Error('Enter a quoted amount first.');
+      item.priceInfo = pricing.quote(Number(item.quoteAmount), item.quoteCurrency || 'USD', item.quoteUrl || '');
+      item.rrp = item.priceInfo.usd;
+      return true;
+    } catch (err) {
+      showToastLocal(err.message);
+      return false;
+    }
   }
 
   function escAttr(s) {
@@ -340,8 +416,11 @@
     };
     const name = pick('name', 'item', 'equipment', 'description', 'product', 'title', 'work', 'details') || 'Unnamed item';
     const category = pick('category', 'type', 'group') || guessCategory(name);
-    const rrp = parseMoney(pick('rrp', 'price', 'msrp', 'retailprice', 'listprice', 'cost', 'unitprice', 'amount', 'total'));
-    const installCost = parseMoney(pick('installcost', 'install', 'labour', 'labor', 'fittingcost', 'laborcost'));
+    const rawPrice = pick('rrp', 'price', 'msrp', 'retailprice', 'listprice', 'cost', 'unitprice', 'amount', 'total');
+    const currency = pick('currency') || importCurrency();
+    const price = importedPrice(rawPrice, currency);
+    const rrp = price.usd;
+    const installCost = importedPrice(pick('installcost', 'install', 'labour', 'labor', 'fittingcost', 'laborcost'), currency).usd;
     const installDate = parseDateFlexible(pick('installdate', 'dateinstalled', 'date', 'purchased', 'purchasedate', 'fitted', 'servicedate', 'maintenancedate', 'performed'));
     const lifeRaw = pick('lifeyears', 'lifeexpectancy', 'lifeexpectancyyears', 'expectedlife', 'lifespan', 'usefullife', 'shelflife');
     const lifeYears = lifeRaw !== '' ? (parseFloat(lifeRaw) || defaultLifeForCategory(category)) : defaultLifeForCategory(category);
@@ -353,12 +432,16 @@
     // Provenance is worked out automatically - a "Source"/"Link" column in the file if present,
     // otherwise the originating file name/path or a URL detected in pasted text (see callers below).
     const sourceNote = pick('source', 'sourcenote', 'seenat', 'link', 'url') || defaultSourceNote || '';
+    const savedPriceInfo = pick('pricereference');
+    const priceInfo = savedPriceInfo ? JSON.parse(savedPriceInfo) : (rawPrice !== '' ? price.info : undefined);
     const explicitKind = normalizeKey(pick('kind'));
     let kind = ['equipment', 'spare', 'maintenance'].includes(explicitKind) ? explicitKind : classifyKind(name + ' ' + category);
-    if (kind === 'equipment' && kindHint) kind = kindHint;
+    if (!explicitKind && kindHint === 'spare') kind = 'spare';
+    else if (kind === 'equipment' && kindHint && !explicitKind) kind = kindHint;
     return {
       id: uid(), kind, name, category, rrp, installCost, installDate,
-      lifeYears, hours, lifeHours, notes, ideal: false, source: source || 'import', sourceNote
+      lifeYears, hours, lifeHours, notes, ideal: false, source: source || 'import', sourceNote,
+      priceInfo
     };
   }
 
@@ -385,10 +468,8 @@
 
   const SKIPPABLE_LINE_RE = /^(page \d+(\s*of\s*\d+)?|subtotal|total|gst|vat|tax invoice|invoice(\s*(no\.?|number))?|quote(\s*(no\.?|number))?|description|qty|quantity|category\s+sub\s*category\s+item\s*description?)$/i;
 
-  // Finds a currency amount in a line of text: $, £, €, a currency code (USD/NZD/AUD/GBP/EUR/CAD)
-  // either side of the number, or a plain decimal amount (e.g. "1,850.00") commonly used in
-  // invoices that don't repeat a currency symbol on every line.
-  const AMOUNT_RE = /(?:[$£€]\s?\d[\d,]*(?:\.\d{1,2})?)|(?:\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|NZD|AUD|GBP|EUR|CAD)\b)|(?:\b(?:USD|NZD|AUD|GBP|EUR|CAD)\s?\d[\d,]*(?:\.\d{1,2})?\b)|(?:\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b)|(?:\b\d+\.\d{2}\b)/gi;
+  // Unmarked decimals are considered separately, only at the end of an invoice-like line.
+  const AMOUNT_RE = /(?:(?:NZ|AU?|CA?|US)?[$£€]\s?\d[\d,]*(?:\.\d{1,2})?)|(?:\b\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|NZD|AUD|GBP|EUR|CAD)\b)|(?:\b(?:USD|NZD|AUD|GBP|EUR|CAD)\s?\d[\d,]*(?:\.\d{1,2})?\b)/gi;
   // A line that is *only* a currency amount, with nothing else on it - used to fold a stray
   // price line onto the preceding title/description line (common in div/card-based listing
   // layouts once stripped to text, where the title and price sit in separate sibling elements).
@@ -396,9 +477,7 @@
 
   // Parses free-form text (PDF text / plain pasted text) into candidate rows. Lines with a
   // recognizable currency amount use the text before it as the item/description and the amount
-  // as RRP/cost; lines with no price at all (common for equipment/spares lists that don't itemize
-  // cost) still become an editable row with RRP $0, rather than being silently dropped - a quote,
-  // survey, or spares list with no dollar figures should never produce "no rows found".
+  // as RRP/cost; unpriced candidates remain editable and are flagged for pricing during review.
   function parseFreeText(text, defaultSourceNote, kindHint) {
     const rawLines = text.split(/\r?\n/).map(l => cleanFragment(l)).filter(Boolean);
     const lines = [];
@@ -409,6 +488,7 @@
     const rows = [];
     const dateRe = /\b(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4})\b/i;
     let prevLine = '';
+    let sectionKind = kindHint;
     lines.forEach(rawLine => {
       // Strip any URL out of the line itself (it's already captured separately as the source),
       // so it doesn't clutter the auto-derived item name.
@@ -416,32 +496,47 @@
       if (!line || line.length < 2 || line === prevLine) return;
       prevLine = line;
       if (SKIPPABLE_LINE_RE.test(line)) return;
+      if (/Owners Initial|^INVENTORY\b|^Spares and Extras for Schedule|^\d+$|^Category\s+Sub/i.test(line)) return;
+      if (/^(vessel name|make|model|year|length|beam|draft|air height|displacement|hull material|deck material|keel type|designer|builder|HIN|place of registration|registration|tax status|lying)\b/i.test(line)) return;
+      if (/^(engine spares package|spare parts pack|spares packages?)\s*:?\s*$/i.test(line)) {
+        sectionKind = 'spare';
+        return;
+      }
+      if (/^(generator|watermaker|engine|anchor and mooring|deck hardware|winches|hull|galley|electronics|batteries|electrical equipment|sail inventory|safety equipment|ground tackle|deck gear & accessories|miscellaneous|accommodation|bathrooms)\s*$/i.test(line)) {
+        sectionKind = kindHint;
+        return;
+      }
 
-      const amounts = line.match(AMOUNT_RE);
+      const amounts = /\b(circa|investment|past \d+ years)\b/i.test(line) ? null
+        : (line.match(AMOUNT_RE)
+          || line.match(/(?<![\w./])\d[\d,]*\.\d{2}(?![\w./])(?=\s*(?:$|\d[\d,]*\.\d{2}\s*$))/g));
       let name, rrp = 0, installCost = 0;
+      let priceInfo;
       if (amounts && amounts.length) {
         const firstIdx = line.indexOf(amounts[0]);
         name = cleanFragment(line.slice(0, firstIdx).replace(/[-:|\t]+$/, ''));
         if (!name) name = cleanFragment(line.replace(amounts[0], ''));
-        rrp = parseMoney(amounts[0]);
-        installCost = amounts.length > 1 ? parseMoney(amounts[1]) : 0;
+        const price = importedPrice(amounts[0], pricing.currencyOf(line, importCurrency()));
+        rrp = price.usd;
+        priceInfo = price.info;
+        installCost = amounts.length > 1 ? importedPrice(amounts[1], pricing.currencyOf(line, importCurrency())).usd : 0;
       } else {
         name = line;
       }
-      name = name.slice(0, 80);
       if (!name) name = 'Unnamed item';
       const category = guessCategory(name);
       const dateMatch = line.match(dateRe);
       let kind = classifyKind(name + ' ' + category);
-      if (kind === 'equipment' && kindHint) kind = kindHint;
+      if (sectionKind === 'spare') kind = 'spare';
+      else if (kind === 'equipment' && sectionKind) kind = sectionKind;
       rows.push({
         id: uid(), kind, name, category, rrp, installCost,
         installDate: dateMatch ? parseDateFlexible(dateMatch[0]) : '',
         lifeYears: defaultLifeForCategory(category), notes: '', ideal: false, source: 'parsed',
-        sourceNote: defaultSourceNote || ''
+        sourceNote: defaultSourceNote || '', priceInfo, originalText: line
       });
     });
-    return rows.slice(0, 300); // safety cap for pathologically long documents
+    return rows;
   }
 
   const URL_RE = /\bhttps?:\/\/[^\s<>"')]+/ig;
@@ -562,24 +657,33 @@
   async function parsePdfFile(file, defaultSourceNote, kindHint) {
     const pdfjsLib = await ensurePdfJs();
     const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-    let fullText = '';
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const content = await page.getTextContent();
-      const lineMap = new Map();
-      content.items.forEach(it => {
-        const y = Math.round(it.transform[5]);
-        if (!lineMap.has(y)) lineMap.set(y, []);
-        lineMap.get(y).push(it.str);
-      });
-      const lines = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]).map(([, parts]) => parts.join(' '));
-      fullText += lines.join('\n') + '\n';
+    const loadingTask = pdfjsLib.getDocument({ data: buffer });
+    const pdf = await loadingTask.promise;
+    try {
+      let fullText = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        fullText += pdfTextLines(content.items).join('\n') + '\n';
+      }
+      if (!fullText.trim()) {
+        throw new Error('No selectable text found in this PDF (it may be a scanned image) - try manual entry instead.');
+      }
+      return parseFreeText(fullText, defaultSourceNote, kindHint);
+    } finally {
+      await loadingTask.destroy();
     }
-    if (!fullText.trim()) {
-      throw new Error('No selectable text found in this PDF (it may be a scanned image) - try manual entry instead.');
-    }
-    return parseFreeText(fullText, defaultSourceNote, kindHint);
+  }
+
+  function pdfTextLines(items) {
+    const groups = [];
+    items.filter(it => it.str?.trim()).sort((a, b) => b.transform[5] - a.transform[5]).forEach(it => {
+      const y = it.transform[5];
+      let group = groups.find(g => Math.abs(g.y - y) <= 2);
+      if (!group) { group = { y, items: [] }; groups.push(group); }
+      group.items.push(it);
+    });
+    return groups.map(group => group.items.sort((a, b) => a.transform[4] - b.transform[4]).map(it => it.str).join(' '));
   }
 
   function escapeRegExp(s) {
@@ -616,6 +720,8 @@
   async function handleFileInput(e) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
+    const targetBoat = getSlotBoat(equipmentState.activeSlot);
+    if (!targetBoat) { showToastLocal('Select an import target boat first.'); e.target.value = ''; return; }
     const allRows = [];
     const failed = [];
     try {
@@ -645,14 +751,14 @@
         showToastLocal(failed.length ? `Could not parse any rows: ${failed.join('; ')}` : 'No rows found in those file(s). Try manual entry instead.');
         return;
       }
-      stageRows(allRows);
+      stageRows(allRows, targetBoat.id);
       // If a whole folder was selected (webkitRelativePath present), work out this specific real
       // boat's own name from the folder it lives in and auto-fill it (without clobbering a name
       // already set, whether auto-detected earlier or typed in manually).
       const folderFile = files.find(f => f.webkitRelativePath);
       if (folderFile) {
         const folderName = folderFile.webkitRelativePath.split('/')[0];
-        const activeBoat = getSlotBoat(equipmentState.activeSlot);
+        const activeBoat = targetBoat;
         if (activeBoat && !equipmentState.nicknames[activeBoat.id]) {
           const nickname = extractBoatNicknameFromFolderName(folderName, activeBoat);
           if (nickname) {
@@ -662,7 +768,7 @@
           }
         }
       }
-      const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} parsed from ${files.length} file${files.length === 1 ? '' : 's'} — kind and source auto-detected per row, review below`];
+      const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} parsed from ${files.length} file${files.length === 1 ? '' : 's'} for ${targetBoat.name} — ${equipmentState.importBoatId === targetBoat.id ? 'review below' : 'switch back to this boat to review'}`];
       if (failed.length) parts.push(`${failed.length} file(s) had issues: ${failed.join('; ')}`);
       showToastLocal(parts.join(' — '));
     } finally {
@@ -675,13 +781,40 @@
   // ---------------------------------------------------------------------
   const KIND_LABELS = { equipment: 'Equipment', spare: 'Spare', maintenance: 'Maintenance' };
 
-  function stageRows(rows) {
+  function syncImportTarget() {
+    const boatId = getSlotBoat(equipmentState.activeSlot)?.id || null;
+    if (boatId === equipmentState.importBoatId) return;
+    if (equipmentState.importBoatId) {
+      equipmentState.importDrafts[equipmentState.importBoatId] = {
+        rows: equipmentState.pendingImport,
+        collapsed: equipmentState.stagingCollapsed,
+        pastedText: elements.pasteArea.value
+      };
+    }
+    const draft = equipmentState.importDrafts[boatId];
+    equipmentState.importBoatId = boatId;
+    equipmentState.pendingImport = draft?.rows || [];
+    equipmentState.stagingCollapsed = draft?.collapsed || false;
+    elements.pasteArea.value = draft?.pastedText || '';
+    elements.fileInput.value = '';
+    elements.folderInput.value = '';
+  }
+
+  function stageRows(rows, boatId = getSlotBoat(equipmentState.activeSlot)?.id) {
+    if (!boatId) { showToastLocal('Select an import target boat first.'); return; }
+    syncImportTarget();
     // Large batches (e.g. a whole narrative PDF with no itemized prices) default to unchecked so
     // the user deliberately picks the rows worth keeping, instead of having to untick hundreds.
     const defaultChecked = rows.length <= 40;
-    equipmentState.pendingImport = rows.map(r => ({ ...r, _checked: defaultChecked }));
+    const staged = rows.map(r => ({ ...enrichPrice(r), _checked: defaultChecked }));
+    if (boatId !== equipmentState.importBoatId) {
+      equipmentState.importDrafts[boatId] = { rows: staged, collapsed: false, pastedText: '' };
+      renderAll();
+      return;
+    }
+    equipmentState.pendingImport = staged;
     equipmentState.stagingCollapsed = false; // always show a freshly parsed batch, even if a previous one was minimized
-    renderStaging();
+    renderAll();
   }
 
   // Keeps the staging table's minimize/expand state in sync with the toggle button - called on
@@ -701,7 +834,10 @@
     const rows = equipmentState.pendingImport;
     elements.stagingWrap.classList.toggle('is-hidden', rows.length === 0);
     applyStagingCollapsedState();
-    if (!rows.length) { elements.stagingTable.innerHTML = ''; return; }
+    const selected = rows.filter(r => r._checked).length;
+    elements.commitBtn.textContent = `Add ${selected} checked row${selected === 1 ? '' : 's'} to boat`;
+    elements.commitBtn.disabled = selected === 0;
+    if (!rows.length) { elements.stagingTable.innerHTML = ''; elements.stagingCount.textContent = ''; return; }
     const counts = rows.reduce((acc, r) => { acc[r.kind] = (acc[r.kind] || 0) + 1; return acc; }, {});
     const countSummary = ['equipment', 'spare', 'maintenance']
       .filter(k => counts[k])
@@ -709,7 +845,9 @@
       .join(', ');
     const allChecked = rows.every(r => r._checked);
     const largeBatchNote = rows.length > 40 && !rows.some(r => r._checked) ? ' — large batch, nothing pre-ticked: select what you want to keep' : '';
-    elements.stagingCount.textContent = `${rows.length} parsed row${rows.length === 1 ? '' : 's'} (auto-detected: ${countSummary}) — review/fix the kind if needed, then add to Boat ${equipmentState.activeSlot}${largeBatchNote}`;
+    const unpriced = rows.filter(r => !(r.rrp > 0)).length;
+    const targetName = getSlotBoat(equipmentState.activeSlot)?.name || `Boat ${equipmentState.activeSlot}`;
+    elements.stagingCount.textContent = `${rows.length} imported row${rows.length === 1 ? '' : 's'} awaiting review — NOT ADDED to ${targetName} yet (${countSummary}) — ${selected} checked; ${unpriced} need a price; all amounts USD${largeBatchNote}`;
 
     // One unified table for all 3 kinds: a per-row "Kind" dropdown lets the user correct the
     // auto-classification. RRP doubles as the maintenance "Cost" amount and Install Date doubles
@@ -717,7 +855,7 @@
     elements.stagingTable.innerHTML = `
       <thead><tr>
         <th><input type="checkbox" id="equipmentStagingAllToggle" ${allChecked ? 'checked' : ''}></th>
-        <th>Kind</th><th>Item / Description</th><th>Category</th><th>RRP / Cost</th><th>Install Cost</th><th>Date</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th>
+        <th>Kind</th><th>Item / Description</th><th>Category</th><th>RRP / Cost (USD)</th><th>Install Cost (USD)</th><th>Date</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th>
       </tr></thead>
       <tbody>${rows.map((r, idx) => `
         <tr>
@@ -725,7 +863,7 @@
           <td><select class="eq-input" data-field="kind" data-row-idx="${idx}">${['equipment', 'spare', 'maintenance'].map(k => `<option value="${k}" ${k === r.kind ? 'selected' : ''}>${KIND_LABELS[k]}</option>`).join('')}</select></td>
           <td><input type="text" class="eq-input eq-input-name" data-field="name" data-row-idx="${idx}" value="${escAttr(r.name)}" title="${r.sourceNote ? 'Source: ' + escAttr(r.sourceNote) : ''}"></td>
           <td><select class="eq-input" data-field="category" data-row-idx="${idx}">${CATEGORY_OPTIONS.map(c => `<option value="${escAttr(c)}" ${c === r.category ? 'selected' : ''}>${escAttr(c)}</option>`).join('')}</select></td>
-          <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="rrp" data-row-idx="${idx}" value="${r.rrp || 0}"></td>
+          <td><input type="number" min="0" step="0.01" class="eq-input eq-input-num" data-field="rrp" data-row-idx="${idx}" value="${r.rrp || ''}" placeholder="Needs price">${renderPriceInfo(r)}${renderQuoteEditor(r, `data-row-idx="${idx}"`)}</td>
           <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="installCost" data-row-idx="${idx}" value="${r.installCost || 0}"></td>
           <td><input type="date" class="eq-input" data-field="installDate" data-row-idx="${idx}" value="${r.installDate || ''}"></td>
           <td><input type="number" min="0" step="0.5" class="eq-input eq-input-num" data-field="lifeYears" data-row-idx="${idx}" value="${r.lifeYears || 0}"></td>
@@ -734,6 +872,7 @@
         </tr>`).join('')}</tbody>`;
     const allToggle = document.getElementById('equipmentStagingAllToggle');
     if (allToggle) {
+      allToggle.indeterminate = selected > 0 && !allChecked;
       allToggle.addEventListener('change', () => {
         equipmentState.pendingImport.forEach(r => { r._checked = allToggle.checked; });
         renderStaging();
@@ -750,12 +889,29 @@
     if (field === '_checked') row._checked = t.checked;
     else if (field === 'rrp' || field === 'installCost' || field === 'lifeYears' || field === 'hours' || field === 'lifeHours') row[field] = parseFloat(t.value) || 0;
     else row[field] = t.value;
+    if (field === '_checked') {
+      renderStaging();
+    }
+    if (field === 'rrp') row.priceInfo = { status: 'manual' };
+    if (field === 'name' && row.priceInfo?.status === 'estimate') {
+      row.rrp = 0; delete row.priceInfo; enrichPrice(row);
+    }
+    if (field === 'kind' && row.kind === 'maintenance' && row.priceInfo?.status === 'estimate') {
+      row.rrp = 0; delete row.priceInfo;
+    }
+    if (['rrp', 'name', 'kind'].includes(field)) renderStaging();
   }
 
   function commitStaged() {
     const slot = equipmentState.activeSlot;
     const boat = getSlotBoat(slot);
     if (!boat) { showToastLocal(`Select a boat in Boat ${slot} above first.`); return; }
+    if (boat.id !== equipmentState.importBoatId) {
+      syncImportTarget();
+      renderStaging();
+      showToastLocal('Import target changed. Review this boat’s rows before adding.');
+      return;
+    }
     const checked = equipmentState.pendingImport.filter(r => r._checked);
     if (!checked.length) { showToastLocal('No rows are checked to add.'); return; }
 
@@ -765,7 +921,7 @@
         if (!equipmentState.maintenanceLog[boat.id]) equipmentState.maintenanceLog[boat.id] = [];
         equipmentState.maintenanceLog[boat.id].push({
           id: r.id, date: r.installDate, description: r.name, cost: r.rrp,
-          linkedItemId: '', source: r.source, sourceNote: r.sourceNote
+          linkedItemId: '', source: r.source, sourceNote: r.sourceNote, priceInfo: r.priceInfo
         });
         maintCount++;
       } else {
@@ -779,7 +935,7 @@
     if (maintCount) saveMaintenanceLog();
     if (equipCount) saveData();
 
-    equipmentState.pendingImport = [];
+    equipmentState.pendingImport = equipmentState.pendingImport.filter(r => !r._checked);
     renderStaging();
     renderAll();
     const parts = [];
@@ -790,7 +946,7 @@
 
   function discardStaged() {
     equipmentState.pendingImport = [];
-    renderStaging();
+    renderAll();
   }
 
   function addManualItem() {
@@ -1091,7 +1247,7 @@
       <td><select class="eq-input" data-field="category" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}">
         ${CATEGORY_OPTIONS.map(c => `<option value="${escAttr(c)}" ${c === item.category ? 'selected' : ''}>${escAttr(c)}</option>`).join('')}
       </select></td>
-      <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="rrp" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.rrp || 0}"></td>
+      <td><input type="number" min="0" step="0.01" class="eq-input eq-input-num" data-field="rrp" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.rrp || ''}" placeholder="Needs price">${renderPriceInfo(item)}${renderQuoteEditor(item, `data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}"`)}</td>
       <td><input type="number" min="0" step="1" class="eq-input eq-input-num" data-field="installCost" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.installCost || 0}"></td>
       <td><input type="date" class="eq-input" data-field="installDate" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.installDate || ''}"></td>
       <td><input type="number" min="0" step="0.5" class="eq-input eq-input-num" data-field="lifeYears" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.lifeYears || 0}"></td>
@@ -1099,7 +1255,7 @@
       <td><input type="number" min="0" step="100" class="eq-input eq-input-num" data-field="lifeHours" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" value="${item.lifeHours || 0}" title="Running-hours life expectancy"></td>
       <td class="eq-readonly">${ageStr}</td>
       <td><span class="eq-status-badge status-${metrics.status}">${statusLabel}</span>${dueStr ? `<div class="eq-due-date">${dueStr}${hoursNote}</div>` : (hoursNote ? `<div class="eq-due-date">${hoursNote}</div>` : '')}</td>
-      <td class="eq-readonly eq-mono">${formatMoney(metrics.currentValue)}</td>
+      <td class="eq-readonly eq-mono">${item.rrp > 0 ? formatMoney(metrics.currentValue) : 'Unpriced'}</td>
       <td><button type="button" class="eq-del-btn" data-action="delete-item" data-boat-id="${escAttr(boatId)}" data-item-id="${escAttr(item.id)}" title="Remove item">✕</button></td>
     </tr>`;
   }
@@ -1109,7 +1265,7 @@
     return `
     <div class="equipment-table-container">
       <table class="equipment-table">
-        <thead><tr><th>★</th><th>Item</th><th>Category</th><th>RRP</th><th>Install</th><th>Installed</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th><th>Age</th><th>Status</th><th>Value Today</th><th></th></tr></thead>
+        <thead><tr><th>★</th><th>Item</th><th>Category</th><th>RRP (USD)</th><th>Install (USD)</th><th>Installed</th><th>Life (yrs)</th><th>Hours</th><th>Life (hrs)</th><th>Age</th><th>Status</th><th>Value Today (USD)</th><th></th></tr></thead>
         <tbody>${rows.length
         ? rows.map(r => renderItemRow(boatId, r.item, r.metrics)).join('')
         : `<tr><td colspan="13" class="eq-empty-row">${emptyMessage}</td></tr>`}</tbody>
@@ -1150,7 +1306,17 @@
     const spareItems = allItems.filter(i => i.kind === 'spare');
     const maintLog = getMaintenanceForBoat(boatId);
     const subTab = equipmentState.cardSubTab[boatId] || 'equipment';
+    const collapseKey = `${boatId}:${subTab}`;
+    const collapsed = !!equipmentState.collapsedTables[collapseKey];
+    const unpriced = allItems.filter(i => !(i.rrp > 0)).length;
+    const comparisonUnpriced = getCompareBoatIds().reduce((total, id) => total + getComparableItems(id).filter(i => !(i.rrp > 0)).length, 0);
     const nickname = equipmentState.nicknames[boatId] || '';
+    const pending = (equipmentState.importBoatId === boatId
+      ? equipmentState.pendingImport : equipmentState.importDrafts[boatId]?.rows) || [];
+    const pendingNotice = pending.length
+      ? `<div class="eq-import-pending" role="status"><strong>${pending.length} imported rows awaiting review — not added yet.</strong>
+          <p>Check the rows to keep, then use "Add checked rows to boat". The tables below show saved items only.</p>
+          <button type="button" class="btn-icon btn-primary" data-action="review-import" data-boat-id="${escAttr(boatId)}" data-slot="${slot}">Review imported rows</button></div>` : '';
 
     const finance = computeBoatFinancials(boatId, boat);
     const overdue = finance.rows.filter(r => r.metrics.status === 'overdue').length;
@@ -1172,11 +1338,11 @@
 
     let tableHtml;
     if (subTab === 'spare') {
-      tableHtml = renderItemsTable(boatId, spareItems, now, 'No spares logged yet — import a PDF/CSV, paste a listing, or add one manually above (set "Import as" to Spare).');
+      tableHtml = renderItemsTable(boatId, spareItems, now, pending.length ? 'Imported rows are awaiting review above; no spares have been added to this boat yet.' : 'No spares logged yet — import a PDF/CSV, paste a listing, or add one manually above (set "Import as" to Spare).');
     } else if (subTab === 'maintenance') {
       tableHtml = renderMaintenanceTable(boatId, maintLog);
     } else {
-      tableHtml = renderItemsTable(boatId, equipItems, now, 'No equipment logged yet — import a PDF/CSV, paste a listing, or add an item manually above.');
+      tableHtml = renderItemsTable(boatId, equipItems, now, pending.length ? 'Imported rows are awaiting review above; no equipment has been added to this boat yet.' : 'No equipment logged yet — import a PDF/CSV, paste a listing, or add an item manually above.');
     }
 
     const gapListHtml = finance.gapInfo.gaps.length
@@ -1213,14 +1379,18 @@
           ${charterHtml}
         </div>
         <div class="equipment-header-actions">
+          <button type="button" class="btn-icon" data-action="lookup-prices" data-boat-id="${escAttr(boatId)}" title="Apply bundled, dated public price references, not a live web search">Look up missing prices</button>
           <button type="button" class="btn-icon eq-model-btn ${isModel ? 'active' : ''}" data-action="toggle-model" data-boat-id="${escAttr(boatId)}">${isModel ? '✓ Model Boat' : 'Set as Model Boat'}</button>
           <button type="button" class="btn-icon" data-action="export-csv" data-boat-id="${escAttr(boatId)}" title="Download equipment & spares as CSV">⬇ CSV</button>
         </div>
       </div>
       ${subTabsHtml}
-      ${tableHtml}
+      ${pendingNotice}
+      <button type="button" class="btn-icon" data-action="toggle-rows" data-boat-id="${escAttr(boatId)}" aria-expanded="${!collapsed}" aria-controls="eq-rows-${escAttr(boatId)}">${collapsed ? 'Expand' : 'Minimize'} ${subTab === 'spare' ? 'spares' : subTab} rows</button>
+      <div id="eq-rows-${escAttr(boatId)}" ${collapsed ? 'hidden' : ''}>${tableHtml}</div>
+      ${comparisonUnpriced ? `<p class="eq-price-warning">${unpriced} row(s) on this boat need a price (${comparisonUnpriced} across the comparison). USD valuations and Comparative Prices are provisional until all equipment/spares are priced.</p>` : ''}
       <div class="equipment-summary-box">
-        <div class="equipment-summary-row"><span>As-New Value (equip. + spares)</span><strong>${formatMoney(finance.totalAsNew)}</strong></div>
+        <div class="equipment-summary-row"><span>As-New Value (equip. + spares, USD${unpriced ? ', partial' : ''})</span><strong>${formatMoney(finance.totalAsNew)}</strong></div>
         <div class="equipment-summary-row"><span>Accrued Depreciation</span><strong class="eq-neg">${finance.totalAccrued > 0 ? '-' : ''}${formatMoney(finance.totalAccrued)}</strong></div>
         <label class="equipment-asking-row">
           <span>Asking / List Price</span>
@@ -1257,6 +1427,8 @@
 
   function renderAll() {
     if (!elements.boatsGrid) return;
+    syncImportTarget();
+    renderStaging();
     updateSlotTabLabels();
     const slotsWithBoats = [1, 2, 3].map(slot => ({ slot, boat: getSlotBoat(slot) })).filter(x => x.boat);
     // Precompute every compared boat's Comparative Price once so the Charter Boat "price is good"
@@ -1314,8 +1486,17 @@
     const itemId = t.dataset.itemId;
     const item = getEquipmentForBoat(boatId).find(i => i.id === itemId);
     if (!item) return;
+    if (field.startsWith('quote')) {
+      item[field] = t.value;
+      saveData();
+      return;
+    }
     if (field === 'rrp' || field === 'installCost' || field === 'lifeYears' || field === 'hours' || field === 'lifeHours') item[field] = parseFloat(t.value) || 0;
     else item[field] = t.value;
+    if (field === 'rrp') item.priceInfo = { status: 'manual' };
+    if (field === 'name' && item.priceInfo?.status === 'estimate') {
+      item.rrp = 0; delete item.priceInfo; enrichPrice(item);
+    }
     saveData();
     renderAll();
   }
@@ -1326,7 +1507,27 @@
     const action = btn.dataset.action;
     const boatId = btn.dataset.boatId;
 
-    if (action === 'card-subtab') {
+    if (action === 'review-import') {
+      equipmentState.activeSlot = Number(btn.dataset.slot);
+      elements.slotTabs.querySelectorAll('[data-slot]').forEach(tab => tab.classList.toggle('active', Number(tab.dataset.slot) === equipmentState.activeSlot));
+      syncImportTarget();
+      equipmentState.stagingCollapsed = false;
+      renderStaging();
+      elements.stagingWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (action === 'apply-quote') {
+      const item = getEquipmentForBoat(boatId).find(i => i.id === btn.dataset.itemId);
+      if (item && applyQuote(item)) { saveData(); renderAll(); }
+    } else if (action === 'toggle-rows') {
+      const key = `${boatId}:${equipmentState.cardSubTab[boatId] || 'equipment'}`;
+      equipmentState.collapsedTables[key] = !equipmentState.collapsedTables[key];
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(equipmentState.collapsedTables));
+      renderAll();
+    } else if (action === 'lookup-prices') {
+      getEquipmentForBoat(boatId).forEach(enrichPrice);
+      saveData();
+      renderAll();
+      showToastLocal('Applied available researched prices. Open Research results on unpriced rows for component prices, specification checks or quote requirements.');
+    } else if (action === 'card-subtab') {
       equipmentState.cardSubTab[boatId] = btn.dataset.subtab;
       renderAll();
     } else if (action === 'delete-maintenance') {
@@ -1348,10 +1549,10 @@
       const boat = getBoatById(boatId);
       if (!boat) return;
       const items = getEquipmentForBoat(boatId);
-      const header = ['Kind', 'Name', 'Category', 'RRP', 'Install Cost', 'Install Date', 'Life Expectancy (yrs)', 'Notes'];
+      const header = ['Kind', 'Name', 'Category', 'RRP', 'Currency', 'Install Cost', 'Install Date', 'Life Expectancy (yrs)', 'Hours', 'Life Expectancy Hours', 'Notes', 'Source', 'Price Reference'];
       const lines = [header.join(',')];
       items.forEach(i => {
-        lines.push([i.kind || 'equipment', i.name, i.category, i.rrp, i.installCost, i.installDate, i.lifeYears, i.notes || ''].map(csvEscape).join(','));
+        lines.push([i.kind || 'equipment', i.name, i.category, i.rrp, 'USD', i.installCost, i.installDate, i.lifeYears, i.hours ?? '', i.lifeHours || '', i.notes || '', i.sourceNote || '', JSON.stringify(i.priceInfo || null)].map(csvEscape).join(','));
       });
       downloadBlob(`${(boat.manufacturer + '-' + boat.name).replace(/\s+/g, '-')}-equipment.csv`, lines.join('\n'), 'text/csv');
     }
@@ -1363,6 +1564,8 @@
       askingPrices: equipmentState.askingPrices,
       modelBoatId: equipmentState.modelBoatId,
       maintenanceLog: equipmentState.maintenanceLog,
+      nicknames: equipmentState.nicknames,
+      cabins: equipmentState.cabins,
       exportedAt: new Date().toISOString()
     };
     downloadBlob('catamaran-equipment-backup.json', JSON.stringify(payload, null, 2), 'application/json');
@@ -1377,7 +1580,10 @@
       if (payload.askingPrices) equipmentState.askingPrices = payload.askingPrices;
       if (payload.modelBoatId !== undefined) equipmentState.modelBoatId = payload.modelBoatId;
       if (payload.maintenanceLog) equipmentState.maintenanceLog = payload.maintenanceLog;
+      if (payload.nicknames) equipmentState.nicknames = payload.nicknames;
+      if (payload.cabins) equipmentState.cabins = payload.cabins;
       saveData(); saveAskingPrices(); saveModelBoat(); saveMaintenanceLog();
+      saveNicknames(); saveCabins();
       renderAll();
       showToastLocal('Equipment backup restored.');
     } catch (err) {
@@ -1410,6 +1616,21 @@
     elements.commitBtn = document.getElementById('equipmentCommitBtn');
     elements.discardBtn = document.getElementById('equipmentDiscardBtn');
     elements.stagingToggleBtn = document.getElementById('equipmentStagingToggleBtn');
+    document.getElementById('equipmentSelectAllBtn').addEventListener('click', () => {
+      equipmentState.pendingImport.forEach(row => { row._checked = true; });
+      renderStaging();
+    });
+    document.getElementById('equipmentSelectNoneBtn').addEventListener('click', () => {
+      equipmentState.pendingImport.forEach(row => { row._checked = false; });
+      renderStaging();
+    });
+    document.getElementById('equipmentPriceStagedBtn').addEventListener('click', () => {
+      const before = equipmentState.pendingImport.filter(row => row.rrp > 0).length;
+      equipmentState.pendingImport.forEach(enrichPrice);
+      renderStaging();
+      const added = equipmentState.pendingImport.filter(row => row.rrp > 0).length - before;
+      showToastLocal(`Added ${added} sourced price estimate(s). Review prices before adding rows to the boat.`);
+    });
 
     elements.slotTabs.addEventListener('click', (e) => {
       const btn = e.target.closest('.equipment-slot-tab');
@@ -1417,6 +1638,8 @@
       elements.slotTabs.querySelectorAll('.equipment-slot-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       equipmentState.activeSlot = parseInt(btn.dataset.slot, 10);
+      syncImportTarget();
+      renderStaging();
     });
 
     if (elements.kindTabs) {
@@ -1446,11 +1669,17 @@
       applyStagingCollapsedState();
     });
     elements.stagingTable.addEventListener('change', onStagingChange);
+    elements.stagingTable.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action="apply-quote"]');
+      if (!btn) return;
+      const row = equipmentState.pendingImport[Number(btn.dataset.rowIdx)];
+      if (row && applyQuote(row)) renderStaging();
+    });
 
     elements.boatsGrid.addEventListener('click', onBoatsGridClick);
     elements.boatsGrid.addEventListener('change', onBoatsGridChange);
 
-    ['boatSelect1', 'boatSelect2', 'boatSelect3'].forEach(id => {
+    ['boatSelect1', 'boatSelect2', 'boatSelect3', 'vppBoatSelect1', 'vppBoatSelect2', 'vppBoatSelect3'].forEach(id => {
       const sel = document.getElementById(id);
       if (sel) sel.addEventListener('change', renderAll);
     });
