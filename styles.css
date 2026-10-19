@@ -2160,6 +2160,27 @@ body {
   gap: 0.4rem;
 }
 
+.eq-rows-toggle {
+  margin: 0.3rem 0;
+}
+
+.eq-rows-toggle summary {
+  cursor: pointer;
+  list-style: revert;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.eq-rows-toggle summary:hover {
+  color: var(--text-primary);
+}
+
+.eq-rows-toggle summary::-webkit-details-marker {
+  color: var(--text-secondary);
+}
+
 .eq-gap-details {
   font-size: 0.78rem;
   color: var(--text-secondary);

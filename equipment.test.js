@@ -21,7 +21,7 @@ function loadEquipment(currency = 'USD') {
   vm.runInContext(source.replace("document.addEventListener('DOMContentLoaded', init);",
     `globalThis.api = { parseFreeText, parseCSV, parsePdfFile, pdfTextLines, enrichPrice, renderPriceInfo,
       renderQuoteEditor, computeItemMetrics, equipmentState, renderBoatCard, syncImportTarget, stageRows,
-      renderStaging, commitStaged, discardStaged, onStagingChange, elements };`), context);
+      renderStaging, commitStaged, discardStaged, onStagingChange, handleFileInput, saveImportedRows, elements };`), context);
   return context;
 }
 
@@ -205,10 +205,11 @@ function stagingHarness() {
   const element = () => ({ value: '', textContent: '', innerHTML: '', classList: { toggle() {} } });
   Object.assign(context.api.elements, {
     pasteArea: element(), fileInput: element(), folderInput: element(),
-    stagingWrap: element(), stagingTable: element(), stagingCount: element(), commitBtn: element()
+    stagingWrap: element(), stagingTable: element(), stagingCount: element(), commitBtn: element(), importStatus: element()
   });
   context.api.syncImportTarget();
-  return { ...context, api: context.api, boat };
+  context.boat = boat;
+  return context;
 }
 
 test('PDF candidates show a pending review banner, not a misleading no-equipment message', () => {
@@ -245,14 +246,90 @@ test('only checked rows are saved to the correct kind; unchecked candidates rema
   assert.equal(api.elements.commitBtn.disabled, true);
 });
 
-test('large imports require explicit selection and update the checked count immediately', () => {
+test('large review imports start fully checked and update the count when a row is deselected', () => {
   const { api } = stagingHarness();
   api.stageRows(Array.from({ length: 41 }, (_, i) => ({ name: `Item ${i}`, kind: 'equipment', rrp: 0 })));
   api.renderStaging();
-  assert.equal(api.elements.commitBtn.disabled, true);
-  api.onStagingChange({ target: { dataset: { rowIdx: '0', field: '_checked' }, checked: true } });
   assert.equal(api.elements.commitBtn.disabled, false);
-  assert.match(api.elements.stagingCount.textContent, /1 checked/);
+  assert.match(api.elements.stagingCount.textContent, /41 checked/);
+  api.onStagingChange({ target: { dataset: { rowIdx: '0', field: '_checked' }, checked: false } });
+  assert.equal(api.elements.commitBtn.disabled, false);
+  assert.match(api.elements.stagingCount.textContent, /40 checked/);
+});
+
+test('PDF uploads automatically save every parsed row to the original target even after switching boats', async () => {
+  const context = stagingHarness();
+  const { api } = context;
+  let lookupBoat;
+  context.BOAT_PHOTOS = { discover: async (_file, id) => { lookupBoat = id; return ''; } };
+  context.pdfjsLib = {
+    getDocument: () => ({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: async () => ({ getTextContent: async () => ({ items: Array.from({ length: 45 }, (_, i) => ({
+          str: `Garmin GMI 20 item ${i}`, transform: [1, 0, 0, 1, 30, 1000 - i * 10]
+        })) }) })
+      }),
+      destroy: async () => {}
+    })
+  };
+  const input = { value: 'selected', files: [{
+    name: 'Inventory.pdf', type: 'application/pdf', size: 100,
+    arrayBuffer: async () => {
+      api.equipmentState.activeSlot = 2;
+      return new ArrayBuffer(0);
+    }
+  }] };
+  await api.handleFileInput({ target: input });
+  assert.equal(api.equipmentState.data.elba.length, 45);
+  assert.equal(api.equipmentState.data.elba[0].rrp, 499.99);
+  assert.equal(api.equipmentState.pendingImport.length, 0);
+  assert.equal(lookupBoat, 'elba');
+  assert.match(api.elements.importStatus.textContent, /45 rows saved automatically/);
+  assert.equal(input.value, '');
+});
+
+test('saving all imported kinds keeps spare and maintenance destinations distinct', () => {
+  const { api } = stagingHarness();
+  const result = api.saveImportedRows([
+    { id: 'gear', kind: 'equipment', name: 'Display', rrp: 100 },
+    { id: 'spare', kind: 'spare', name: 'Filter', rrp: 10 },
+    { id: 'service', kind: 'maintenance', name: 'Service', rrp: 25 }
+  ], 'original-target');
+  assert.equal(result.equipCount, 2);
+  assert.equal(result.maintCount, 1);
+  assert.equal(api.equipmentState.data['original-target'][1].kind, 'spare');
+  assert.equal(api.equipmentState.maintenanceLog['original-target'][0].cost, 25);
+});
+
+test('local photo discovery persists per model, preserves selection and reports unavailable servers', async () => {
+  const stored = new Map();
+  let updates = 0;
+  const photos = [{ name: 'Photos/hull.jpg', url: '/api/boat-photo?path=hull.jpg' },
+    { name: 'Photos/exterior.jpg', url: '/api/boat-photo?path=exterior.jpg' }];
+  const context = vm.createContext({
+    console,
+    localStorage: { getItem: key => stored.get(key), setItem: (key, value) => stored.set(key, value) },
+    CustomEvent: class { constructor(type) { this.type = type; } },
+    dispatchEvent: () => { updates++; },
+    fetch: async () => ({
+      ok: true, headers: { get: () => 'application/json' },
+      json: async () => ({ photos, selected: photos[0].url })
+    })
+  });
+  context.window = context;
+  const source = fs.readFileSync(path.join(__dirname, 'boat-photos.js'), 'utf8');
+  vm.runInContext(source, context);
+  await context.BOAT_PHOTOS.discover({ name: 'Inventory.pdf', size: 100 }, 'elba');
+  context.BOAT_PHOTOS.choose('elba', photos[1].url);
+  await context.BOAT_PHOTOS.discover({ name: 'Spares.pdf', size: 200 }, 'elba');
+  vm.runInContext(source, context);
+  assert.equal(context.BOAT_PHOTOS.get('elba').selected, photos[1].url);
+  assert.equal(context.BOAT_PHOTOS.get('saona'), undefined);
+  assert.equal(updates, 3);
+  assert.throws(() => context.BOAT_PHOTOS.choose('elba', 'https://wrong-boat.example/photo'), /this boat/);
+  context.fetch = async () => ({ headers: { get: () => 'text/html' } });
+  await assert.rejects(context.BOAT_PHOTOS.discover({ name: 'Inventory.pdf' }, 'elba'), /local_server.py/);
 });
 
 test('expanded price references cover real-fixture electronics, controllers and exact spare kits', () => {
@@ -311,4 +388,25 @@ test('bundles expose sourced per-unit research without treating a partial price 
   assert.equal(historical.rrp, 0);
   assert.match(api.renderPriceInfo(historical), /not evidence of historical maintenance spend/);
   assert.match(api.renderPriceInfo(historical), /2556.4/);
+});
+
+test('database catalogue replaces lookup references with dated FX while preserving manual costs', () => {
+  const { api, EQUIPMENT_PRICING: prices } = loadEquipment();
+  const catalogue = { references: [{
+    model: 'Garmin GMI 20 database quote', pattern: '\\bGarmin GMI 20\\b', flags: 'i',
+    amount: 100, currency: 'GBP', url: 'https://example.com/quote',
+    fxRate: 1.5, checkedDate: '2026-10-18', fxDate: '2026-10-17', fxSource: 'https://example.com/fx',
+    evidence: [{ kind: 'pdf_inventory', boat_model: 'Fountaine Pajot Elba 45' }]
+  }] };
+  prices.useCatalogue(catalogue);
+  const ref = prices.lookup('2 Garmin GMI 20');
+  assert.equal(ref.usd, 300);
+  assert.equal(ref.checkedDate, '2026-10-18');
+  assert.equal(ref.fxDate, '2026-10-17');
+  assert.equal(ref.fxRate, 1.5);
+  assert.equal(api.enrichPrice({ name: 'Garmin GMI 20', kind: 'equipment', rrp: 42 }).rrp, 42);
+  assert.equal(prices.research('Garmin GMI 20 with cable').components[0].usd, 150);
+  assert.throws(() => prices.useCatalogue({ references: [] }), /no products/);
+  assert.throws(() => prices.useCatalogue({ references: [{ ...catalogue.references[0], currency: 'XYZ' }] }), /invalid/);
+  assert.equal(prices.lookup('Garmin GMI 20').usd, 150);
 });

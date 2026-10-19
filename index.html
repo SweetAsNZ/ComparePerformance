@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=2026-10-15-3">
+  <link rel="stylesheet" href="styles.css?v=2026-10-19-1">
 </head>
 <body>
 
@@ -680,8 +680,9 @@
           <div class="equipment-import-methods">
             <div class="equipment-import-card">
               <h4>📄 Import PDF or CSV</h4>
-              <p>Upload any mix of quotes, surveys, invoices, or lists at once (hold Ctrl/Cmd or Shift when choosing files) — no need to sort them first. Each row is automatically detected as Equipment, a Spare, or a Maintenance Log entry from its wording, and you can fix the kind per row before adding. Its source is worked out automatically from the file name (no need to type it in). Any of these CSV column names work: Name/Description, Category, RRP/Cost/Amount, Install Cost, Install Date/Date, Life Expectancy (yrs), Hours/Engine Hours (for engines/generators), Life Expectancy Hours.</p>
+              <p>Upload any mix of quotes, surveys, invoices, or lists at once (hold Ctrl/Cmd or Shift when choosing files). Batches containing PDFs save every parsed row automatically; CSV-only imports start fully checked for review. Rows are classified as Equipment, Spare or Maintenance from their wording; review the saved tables for classification errors, duplicates and missing prices. Source filenames are retained automatically. CSV columns include Name/Description, Category, RRP/Cost/Amount, Install Cost, Install Date/Date, Life Expectancy (yrs), Hours/Engine Hours and Life Expectancy Hours.</p>
               <input type="file" id="equipmentFileInput" accept=".csv,.pdf,application/pdf,text/csv" multiple aria-label="Import equipment, spares or maintenance history from one or more PDF or CSV files">
+              <p id="equipmentImportStatus" class="eq-folder-hint" role="status">PDF uploads save all parsed rows automatically. Review saved rows for duplicate mentions and classification errors.</p>
               <label class="equipment-folder-import">
                 <span>📁 Or import a whole folder</span>
                 <input type="file" id="equipmentFolderInput" webkitdirectory multiple aria-label="Import every PDF or CSV in a folder, and use the folder name to work out the boat's real name">
@@ -713,12 +714,20 @@
             </div>
           </div>
           <p class="eq-privacy-note">🔒 No automated logins or scraping: we never ask for Facebook/forum credentials or MFA codes, and nothing here fetches other websites on your behalf — you stay in control of what gets copied in.</p>
-          <p class="eq-folder-hint">Uploading creates review rows, not saved equipment. Check the rows to keep, then click "Add checked rows to boat"; large imports start unchecked. All catalogue values are USD. Identifiable matches in the researched reference list receive editable replacement-price estimates with source links, original currency and dated exchange rates. Open "Research results" for per-unit component prices, specification conflicts or supplier-quote requirements. Partial bundles are not treated as fully priced; totals remain provisional. Review repeated history/inventory mentions to avoid duplicates. Installation, shipping and tax are not estimated. Maintenance spend is never inferred from a replacement price.</p>
+          <p class="eq-folder-hint">PDF uploads save all parsed rows automatically to the selected boat. CSV-only and pasted imports start with every row checked; click "Add checked rows to boat" to save them. The local server looks for exterior photos beside the PDF and in its subfolders under Personal\Boating. Known exterior selections are applied automatically; otherwise use the photo selector on the top model card. All catalogue values are USD. Identifiable matches receive sourced replacement estimates. Open "Research results" for partial component prices or quote requirements. Totals remain provisional where prices are missing. Review repeated history/inventory mentions to avoid duplicates. Maintenance spend is never inferred from replacement prices.</p>
           <label class="equipment-asking-row">Currency for unlabelled import amounts (including $)
             <select id="equipmentImportCurrency" class="eq-input">
               <option>USD</option><option>NZD</option><option>AUD</option><option>GBP</option><option>EUR</option><option>CAD</option>
             </select>
           </label>
+          <p id="equipmentPriceDatabaseStatus" class="eq-folder-hint" role="status">Connecting to the local SQLite price database...</p>
+          <details>
+            <summary>Common catamaran equipment price database (USD)</summary>
+            <p>Prices are sourced replacement references. PDF inventory evidence is not a cruiser endorsement. Owner reports describe individual installations, not universal suitability.</p>
+            <p><a href="equipment_prices.sqlite3" download>Download SQLite database</a> | <a href="/api/equipment-prices" target="_blank" rel="noopener">View catalogue JSON</a></p>
+            <label>Search model or category <input id="equipmentPriceSearch" type="search" class="eq-input" placeholder="e.g. Victron, anchor, watermaker"></label>
+            <div id="equipmentPriceCatalogue"></div>
+          </details>
 
           <!-- Staging table for review before commit -->
           <div id="equipmentStagingWrap" class="equipment-staging-wrap is-hidden">
@@ -771,8 +780,9 @@
   <!-- Scripts -->
   <script src="data.js?v=2026-10-16-4"></script>
   <script src="calculations.js?v=2026-09-17-1"></script>
-  <script src="app.js?v=2026-10-16-1"></script>
-  <script src="equipment-pricing.js?v=2026-10-17-3"></script>
-  <script src="equipment.js?v=2026-10-17-3"></script>
+  <script src="boat-photos.js?v=2026-10-17-1"></script>
+  <script src="app.js?v=2026-10-17-1"></script>
+  <script src="equipment-pricing.js?v=2026-10-17-5"></script>
+  <script src="equipment.js?v=2026-10-19-1"></script>
 </body>
 </html>

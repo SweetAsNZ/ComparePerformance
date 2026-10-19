@@ -44,7 +44,7 @@ Compare specific models directly via URL parameters, e.g.:
   - **PDF review and missing prices**: PDF text fragments within 2 points of the same baseline are joined left-to-right, preventing labels and values from splitting over rounding boundaries. Full descriptions and documents longer than 300 rows are retained. Obvious vessel metadata/headings/footers are excluded; narrative prose still needs review. Currency-marked amounts and trailing two-decimal invoice amounts are recognized, but dimensions, RPM and comma-separated hours are not prices. Large batches default to unticked.
   - **Replacement prices in USD**: Unpriced rows say **Needs price**, not a misleading $0 valuation. A small, researched exact-model reference list automatically fills identifiable items (currently Fortress FX-11/37/55, Johnson 09-45587 kit, Volvo 22030848 filter, Garmin GMI 20, Ocean Signal PLB1). Sources and check dates appear beside estimates. **Look up missing prices** applies these references to an existing boat without overwriting entered prices; it is a local reference lookup, not a live web search. Bundles, used parts and unspecified models are not guessed. **Enter researched price** accepts a quoted total, currency and public source URL and converts it to USD. Estimates exclude installation, shipping and tax; maintenance spend is never inferred from replacement prices.
   - **Currency conversion**: Choose the source currency before importing unlabelled amounts (including `$`); explicit currency markers or a CSV `Currency` column take precedence. USD, NZD, AUD, GBP, EUR and CAD use the [Frankfurter reference rates dated 2026-10-16](https://api.frankfurter.dev/v1/2026-10-16?base=USD&symbols=NZD,AUD,GBP,EUR,CAD), not a live FX feed. Original amount/currency, rate/date and source are retained. Manual RRP edits are USD. JSON backup and CSV export retain price provenance. Comparative Prices are explicitly provisional while any compared boat has unpriced rows.
-  - **Minimize boat rows**: Each boat has an independent **Minimize spares rows** / **Expand spares rows** button (also available for equipment and maintenance). Counts, tabs and financial summaries remain visible. The setting persists across reloads independently per boat and section.
+  - **Minimize boat rows**: Each boat has an independent collapsible "Equipment/Spares/Maintenance rows" dropdown (a native expand/collapse arrow, not a button) under its tabs. It's minimized by default; counts, tabs and financial summaries remain visible either way. The open/closed setting persists across reloads independently per boat and section once toggled.
   - **Import target follows the model**: Pending PDF/CSV rows, their edits/checkmarks, staging collapse state and pasted text are kept separately by boat model during the current page session. Changing the active target or its model in either the comparison or VPP selector shows that model's draft, not the previous boat's PDF. Switching back restores its draft; imports finishing while you switch remain attached to the original target. Pending drafts are not saved across page reloads.
   - **Category auto-guessing & life-expectancy defaults**: e.g. engines 20 yrs, sails 10 yrs, electronics 8 yrs, batteries 6 yrs, applied automatically when not supplied.
   - **Age & replacement tracking (by calendar age or running hours)**: Each equipment/spare item shows its age, a computed replacement-due date, and an OK / Due Soon / Overdue status badge based on straight-line age-based depreciation. Engines and generators can additionally be tracked by **running hours** (Hours / Life (hrs) columns, defaulting to a 5,000-hour life expectancy) — when hours are logged, they take over from calendar age entirely, since a low-hours engine on an older boat genuinely isn't due for replacement just because years have passed.
@@ -94,15 +94,53 @@ Keep these as the standard local import test files. They remain private, outside
 Serve the app on port 8000 and test in **Equipment & Comparative Price**:
 
 1. Select the Elba import target and import its inventory. Verify `Radar Garmin Fantom 18` and `Battery House 900 Amps` stay on single rows. The `1,800 RPM` fuel-consumption line must not become a $1,800 item. The `2 Garmin GMI 20` row should show a sourced $999.98 USD replacement estimate.
-2. Select the Saona target and import **both** Seaduction files together. Verify history continues beyond the old 300-row limit, both filenames are retained as provenance, and the Johnson `09-45587` service kit is a **Spare**, with GBP 54.99 / USD 73.33 and an FX source/date. Narrative lines and unknown quantities remain candidates, not an automatically committed inventory.
-3. Uploads are **not saved equipment yet**. Confirm the boat card shows **imported rows awaiting review**, not just an empty-equipment message. Use **Review imported rows** to return to the correct target. Batches over 40 rows start unchecked; **Select all rows**, **Select none**, and the checked count make the review explicit. Review classifications and repeated mentions before adding. Import drafts follow the selected model for the current page session, but are not retained across reload.
-4. Review before committing. Confirm missing prices are visibly flagged, source links open public product pages, and entered costs are not overwritten by the reference lookup. A researched NZD 176.56 quote must convert to USD 100.00. **Research results** on unpriced rows show sourced per-unit components or specific reasons a quote/specification is needed; these partial amounts must not enter the row total.
-5. Commit only chosen rows to the correct boat. Unchecked rows remain in review until explicitly discarded. Open **Spares**, minimize its rows, edit an unrelated boat field, switch tabs, then reload: saved spares stay minimized and counts/summaries remain available. Expand to recover all rows.
+2. Select the Saona target and import **both** Seaduction files together. All 664 parsed rows save automatically (624 equipment/spares and 40 maintenance entries); both filenames remain as provenance. The Johnson `09-45587` service kit must be a **Spare**, with GBP 54.99 / USD 73.33 and an FX source/date. Review saved rows for narrative fragments, repeated mentions and incorrect classifications. Re-importing the same PDF adds its rows again.
+3. PDF-containing batches save all parsed PDF/CSV rows to the boat selected when the upload started, even if a selector changes during parsing. CSV-only and pasted imports still offer review, with **all rows checked by default**, including large batches. Unchecked review rows remain until discarded; these drafts follow model identity for the current page session but do not survive reload.
+4. Confirm missing prices are visibly flagged, source links open public product pages, and entered costs are not overwritten by the reference lookup. A researched NZD 176.56 quote must convert to USD 100.00. **Research results** on unpriced rows show sourced per-unit components or specific reasons a quote/specification is needed; these partial amounts must not enter the row total.
+5. Confirm the exterior hull photo replaces the stock photo on the top model card after import. Open **Spares**, minimize its rows, edit an unrelated boat field, switch tabs, then reload: saved rows, local photo selection and the spares collapse preference must persist.
 6. Backup/restore and CSV round-trip should preserve USD values and price provenance. Do not commit test rows or overwrite an existing user's catalogue just to run a test; use isolated browser storage or restore an exact pre-test snapshot.
 
 ### Researched replacement prices
 
-The versioned local reference catalogue in [equipment-pricing.js](./equipment-pricing.js) contains public supplier prices checked on 2026-10-17, with dated USD exchange rates. The lookup buttons apply this reference catalogue, **not a live web search**. Quotes can change; check availability, regional variants, tax and delivery with the linked supplier. These are replacement estimates, not the owner's purchase costs or guaranteed current offers.
+The persistent [equipment_prices.sqlite3](./equipment_prices.sqlite3) SQLite database stores the researched common-equipment catalogue. The local server exposes `/api/equipment-prices`; the app loads it for import pricing and **Look up missing prices**. Existing entered/document costs and historical maintenance spending are not overwritten. Open **Common catamaran equipment price database (USD)** to search the catalogue, inspect evidence and download the database.
+
+The initial database contains **35 products and 35 dated supplier quotes**, 5 evidence sources, 41 product/evidence associations, and 12 unresolved research requirements. PDF inventory evidence is distinct from owner recommendations/reported installations. Two additional products, Ekrano GX and SmartSolar MPPT 75/15, are based on the [Excess 12 owner's Victron refit report](https://community.victronenergy.com/t/excess-12-catamaran-with-victron/47664), with separate supplier price sources. The MPPT controller family is a disclosed replacement basis, not a claim of exact original fitment. This is an initial sourced catalogue, not an exhaustive equipment list or engineering compatibility guarantee.
+
+Public supplier prices were checked on 2026-10-17, with dated USD exchange rates. The lookup buttons use the database, **not a live web search**. If the database/server is unavailable, the UI explicitly warns and uses the versioned [equipment-pricing.js](./equipment-pricing.js) fallback. Quotes can change; confirm availability, regional variants, tax and delivery with the linked supplier. These are replacement estimates, not the owner's purchase costs or guaranteed current offers.
+
+Create or repeat the non-destructive seed import:
+
+```text
+python equipment_price_db.py
+```
+
+This uses Node.js to read the existing researched JavaScript references and [equipment-price-sources.json](./equipment-price-sources.json) for PDF/owner provenance. No packages or private-PDF uploads are required. Re-running does not delete existing data or overwrite a quote for the same product/source/date/currency. To record a new dated snapshot from the seed, update its checked date and researched prices before importing. Restarting the server creates the database only if missing, not on every startup.
+
+Inspect without modifying the database:
+
+```text
+python equipment_price_db.py --search Victron
+python -m unittest test_equipment_price_db test_local_server -v
+```
+
+Tables are `equipment`, `price_quotes`, `exchange_rates`, `evidence_sources`, `equipment_evidence`, and `research_requirements`. `latest_equipment_prices_usd` selects the newest dated quote per product, preserving earlier quotes in `price_quotes`. USD prices are stored as integer cents using decimal conversion; original amount/currency, FX date/rate/source, supplier URL, quote date, per-unit basis and configuration caveats are retained. Evidence stores document titles/model associations or public owner links, not PDF contents or private filesystem paths.
+
+Example SQL for SQLite Browser or another SQLite client:
+
+```sql
+SELECT model, category, price_usd, original_currency, original_amount,
+       checked_date, source_url, review_only
+FROM latest_equipment_prices_usd
+ORDER BY category, model;
+
+SELECT e.model, s.boat_model, s.kind, s.title, s.source_url, s.notes
+FROM equipment e
+JOIN equipment_evidence ee ON ee.equipment_id = e.id
+JOIN evidence_sources s ON s.id = ee.source_id
+ORDER BY s.boat_model, e.model;
+```
+
+Filtered JSON is available at `/api/equipment-prices?q=Victron`. The endpoint is read-only; it cannot execute arbitrary SQL or write prices. Review-only configurations remain review-only when loaded into the browser. Additional quotes/evidence can be added directly with a SQLite client while respecting foreign keys, source links, date fields and the per-unit price basis. Refresh the page after database edits.
 
 Coverage includes Fortress anchors; Johnson and Whale service kits; Volvo 22030848 filters; Garmin displays, plotters, AIS, transducers, international radio/handset and GND 10 bridge; Victron MPPT controllers, MultiPlus Compact and GX Touch; Schenker ZEN 100; Ultra anchor/swivel; Highfield CL360; Harken bosun chair; and PredictWind DataHub. Cerbo MK2 and Quattro references are review-only where the installed generation/configuration is uncertain.
 
@@ -112,7 +150,7 @@ Some items remain deliberately unpriced: exact generator/engine dealer quotes, c
 
 ## How to Run
 
-This app is a static website and must be served from a local web server. If you open the raw HTML file directly or try to access a stale localhost tab that is not serving the app, the browser will fail with a `chrome-error://` page.
+The frontend is static; the loopback-only local server also supplies boat photos. If you open the raw HTML file directly or try to access a stale localhost tab that is not serving the app, the browser will fail with a `chrome-error://` page.
 
 From the project folder, run:
 
@@ -130,10 +168,24 @@ Alternative manual start:
 
 ```bash
 cd path\to\ComparePerformance
-python -m http.server 8000 --bind 127.0.0.1
+python local_server.py --port 8000 --bind 127.0.0.1
 ```
 
 Then open the URL above in your browser.
+
+### Local exterior photos
+
+Browsers do not expose an uploaded PDF's original filesystem path. The local server matches its filename and byte size under `%OneDriveCommercial%\Personal\Boating`, then searches **that PDF's folder and subfolders** for JPG/JPEG/PNG/WebP images. Ambiguous matching folders are rejected rather than choosing the wrong boat. Files remain on disk; photos are served locally, never uploaded to an external service. PDFs outside this allowed tree still import equipment but cannot auto-discover their photos.
+
+The optional, git-ignored `local-photo-preferences.json` maps a boat folder relative to `Personal\Boating` to a visually verified exterior photo relative to that folder. This machine has verified selections for Starry Knight (`Photos/2.jpg`) and Seaduction (`Photos/20250128_140207-EDIT.jpg`). Otherwise exterior/hull/sailing filenames are preferred. Numbered images are **not** assumed to show the hull: use the photo selector on the top model card to choose an exterior. Photo selection is stored per model in the browser and survives reload and comparison-slot changes.
+
+An old `python -m http.server` process cannot supply these endpoints. Stop that specific server and restart with the helper above; it warns if an existing listener lacks photo support. Missing/unreadable local files produce an import status message instead of preventing equipment from saving. Plain static hosting still supports equipment imports, but not automatic local photo discovery.
+
+Photo discovery regression tests (no additional packages required):
+
+```text
+python -m unittest test_local_server -v
+```
 
 ## Run at Machine Startup (Windows)
 

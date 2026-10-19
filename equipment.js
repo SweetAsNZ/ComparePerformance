@@ -30,6 +30,7 @@
   const NICKNAME_KEY = 'cc_equipment_nicknames_v1';
   const COLLAPSED_KEY = 'cc_equipment_collapsed_v1';
   const pricing = window.EQUIPMENT_PRICING;
+  let priceDatabaseReady = Promise.resolve();
   const PDFJS_MODULE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.min.mjs';
   const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.4.299/pdf.worker.min.mjs';
 
@@ -722,8 +723,11 @@
     if (!files.length) return;
     const targetBoat = getSlotBoat(equipmentState.activeSlot);
     if (!targetBoat) { showToastLocal('Select an import target boat first.'); e.target.value = ''; return; }
+    await priceDatabaseReady;
     const allRows = [];
     const failed = [];
+    const photoIssues = [];
+    const hasPDF = files.some(file => /\.pdf$/i.test(file.name) || file.type === 'application/pdf');
     try {
       for (const file of files) {
         // Browsers never expose a file input's real folder path (for user privacy/security), so
@@ -737,12 +741,21 @@
             if (files.length > 1) showToastLocal(`Parsing ${file.name}…`);
             else showToastLocal('Parsing PDF…');
             rows = await parsePdfFile(file, fileSourceNote, kindHint);
-          } else {
+          } else if (/\.csv$/i.test(file.name) || file.type === 'text/csv') {
             const text = await file.text();
             rows = parseCSV(text, fileSourceNote, kindHint);
-          }
+          } else continue;
           allRows.push(...rows);
           if (!rows.length) failed.push(`${file.name} (empty)`);
+          if (rows.length && (/\.pdf$/i.test(file.name) || file.type === 'application/pdf')) {
+            try {
+              const note = await window.BOAT_PHOTOS.discover(file, targetBoat.id);
+              if (note) photoIssues.push(note);
+            } catch (err) {
+              photoIssues.push(`${file.name}: ${err.message}`);
+              console.error('Local boat photo discovery failed.', err);
+            }
+          }
         } catch (err) {
           failed.push(`${file.name} (${err && err.message ? err.message : 'error'})`);
         }
@@ -751,7 +764,10 @@
         showToastLocal(failed.length ? `Could not parse any rows: ${failed.join('; ')}` : 'No rows found in those file(s). Try manual entry instead.');
         return;
       }
-      stageRows(allRows, targetBoat.id);
+      if (hasPDF) {
+        saveImportedRows(allRows.map(enrichPrice), targetBoat.id);
+        renderAll();
+      } else stageRows(allRows, targetBoat.id);
       // If a whole folder was selected (webkitRelativePath present), work out this specific real
       // boat's own name from the folder it lives in and auto-fill it (without clobbering a name
       // already set, whether auto-detected earlier or typed in manually).
@@ -768,8 +784,10 @@
           }
         }
       }
-      const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} parsed from ${files.length} file${files.length === 1 ? '' : 's'} for ${targetBoat.name} — ${equipmentState.importBoatId === targetBoat.id ? 'review below' : 'switch back to this boat to review'}`];
+      const parts = [`${allRows.length} row${allRows.length === 1 ? '' : 's'} ${hasPDF ? 'saved automatically' : 'ready to add'} to ${targetBoat.name}. Review classifications, prices and duplicate mentions in the saved tables.`];
       if (failed.length) parts.push(`${failed.length} file(s) had issues: ${failed.join('; ')}`);
+      if (photoIssues.length) parts.push(`Photos: ${[...new Set(photoIssues)].join('; ')}`);
+      elements.importStatus.textContent = parts.join(' — ');
       showToastLocal(parts.join(' — '));
     } finally {
       e.target.value = '';
@@ -803,10 +821,7 @@
   function stageRows(rows, boatId = getSlotBoat(equipmentState.activeSlot)?.id) {
     if (!boatId) { showToastLocal('Select an import target boat first.'); return; }
     syncImportTarget();
-    // Large batches (e.g. a whole narrative PDF with no itemized prices) default to unchecked so
-    // the user deliberately picks the rows worth keeping, instead of having to untick hundreds.
-    const defaultChecked = rows.length <= 40;
-    const staged = rows.map(r => ({ ...enrichPrice(r), _checked: defaultChecked }));
+    const staged = rows.map(r => ({ ...enrichPrice(r), _checked: true }));
     if (boatId !== equipmentState.importBoatId) {
       equipmentState.importDrafts[boatId] = { rows: staged, collapsed: false, pastedText: '' };
       renderAll();
@@ -844,10 +859,9 @@
       .map(k => `${counts[k]} ${KIND_LABELS[k].toLowerCase()}`)
       .join(', ');
     const allChecked = rows.every(r => r._checked);
-    const largeBatchNote = rows.length > 40 && !rows.some(r => r._checked) ? ' — large batch, nothing pre-ticked: select what you want to keep' : '';
     const unpriced = rows.filter(r => !(r.rrp > 0)).length;
     const targetName = getSlotBoat(equipmentState.activeSlot)?.name || `Boat ${equipmentState.activeSlot}`;
-    elements.stagingCount.textContent = `${rows.length} imported row${rows.length === 1 ? '' : 's'} awaiting review — NOT ADDED to ${targetName} yet (${countSummary}) — ${selected} checked; ${unpriced} need a price; all amounts USD${largeBatchNote}`;
+    elements.stagingCount.textContent = `${rows.length} imported row${rows.length === 1 ? '' : 's'} awaiting review — NOT ADDED to ${targetName} yet (${countSummary}) — ${selected} checked; ${unpriced} need a price; all amounts USD`;
 
     // One unified table for all 3 kinds: a per-row "Kind" dropdown lets the user correct the
     // auto-classification. RRP doubles as the maintenance "Cost" amount and Install Date doubles
@@ -902,6 +916,29 @@
     if (['rrp', 'name', 'kind'].includes(field)) renderStaging();
   }
 
+  function saveImportedRows(rows, boatId) {
+    let equipCount = 0, maintCount = 0;
+    rows.forEach(r => {
+      if (r.kind === 'maintenance') {
+        if (!equipmentState.maintenanceLog[boatId]) equipmentState.maintenanceLog[boatId] = [];
+        equipmentState.maintenanceLog[boatId].push({
+          id: r.id, date: r.installDate, description: r.name, cost: r.rrp,
+          linkedItemId: '', source: r.source, sourceNote: r.sourceNote, priceInfo: r.priceInfo
+        });
+        maintCount++;
+      } else {
+        if (!equipmentState.data[boatId]) equipmentState.data[boatId] = [];
+        const item = { ...r };
+        delete item._checked;
+        equipmentState.data[boatId].push(item);
+        equipCount++;
+      }
+    });
+    if (maintCount) saveMaintenanceLog();
+    if (equipCount) saveData();
+    return { equipCount, maintCount };
+  }
+
   function commitStaged() {
     const slot = equipmentState.activeSlot;
     const boat = getSlotBoat(slot);
@@ -914,26 +951,7 @@
     }
     const checked = equipmentState.pendingImport.filter(r => r._checked);
     if (!checked.length) { showToastLocal('No rows are checked to add.'); return; }
-
-    let equipCount = 0, maintCount = 0;
-    checked.forEach(r => {
-      if (r.kind === 'maintenance') {
-        if (!equipmentState.maintenanceLog[boat.id]) equipmentState.maintenanceLog[boat.id] = [];
-        equipmentState.maintenanceLog[boat.id].push({
-          id: r.id, date: r.installDate, description: r.name, cost: r.rrp,
-          linkedItemId: '', source: r.source, sourceNote: r.sourceNote, priceInfo: r.priceInfo
-        });
-        maintCount++;
-      } else {
-        if (!equipmentState.data[boat.id]) equipmentState.data[boat.id] = [];
-        const item = { ...r };
-        delete item._checked;
-        equipmentState.data[boat.id].push(item);
-        equipCount++;
-      }
-    });
-    if (maintCount) saveMaintenanceLog();
-    if (equipCount) saveData();
+    const { equipCount, maintCount } = saveImportedRows(checked, boat.id);
 
     equipmentState.pendingImport = equipmentState.pendingImport.filter(r => !r._checked);
     renderStaging();
@@ -1307,7 +1325,8 @@
     const maintLog = getMaintenanceForBoat(boatId);
     const subTab = equipmentState.cardSubTab[boatId] || 'equipment';
     const collapseKey = `${boatId}:${subTab}`;
-    const collapsed = !!equipmentState.collapsedTables[collapseKey];
+    // Minimised by default until the user has explicitly expanded/collapsed this table at least once.
+    const collapsed = collapseKey in equipmentState.collapsedTables ? !!equipmentState.collapsedTables[collapseKey] : true;
     const unpriced = allItems.filter(i => !(i.rrp > 0)).length;
     const comparisonUnpriced = getCompareBoatIds().reduce((total, id) => total + getComparableItems(id).filter(i => !(i.rrp > 0)).length, 0);
     const nickname = equipmentState.nicknames[boatId] || '';
@@ -1386,8 +1405,10 @@
       </div>
       ${subTabsHtml}
       ${pendingNotice}
-      <button type="button" class="btn-icon" data-action="toggle-rows" data-boat-id="${escAttr(boatId)}" aria-expanded="${!collapsed}" aria-controls="eq-rows-${escAttr(boatId)}">${collapsed ? 'Expand' : 'Minimize'} ${subTab === 'spare' ? 'spares' : subTab} rows</button>
-      <div id="eq-rows-${escAttr(boatId)}" ${collapsed ? 'hidden' : ''}>${tableHtml}</div>
+      <details class="eq-rows-toggle" ${collapsed ? '' : 'open'}>
+        <summary data-action="toggle-rows" data-boat-id="${escAttr(boatId)}" aria-controls="eq-rows-${escAttr(boatId)}">${subTab === 'spare' ? 'Spares' : subTab === 'maintenance' ? 'Maintenance' : 'Equipment'} rows</summary>
+        <div id="eq-rows-${escAttr(boatId)}">${tableHtml}</div>
+      </details>
       ${comparisonUnpriced ? `<p class="eq-price-warning">${unpriced} row(s) on this boat need a price (${comparisonUnpriced} across the comparison). USD valuations and Comparative Prices are provisional until all equipment/spares are priced.</p>` : ''}
       <div class="equipment-summary-box">
         <div class="equipment-summary-row"><span>As-New Value (equip. + spares, USD${unpriced ? ', partial' : ''})</span><strong>${formatMoney(finance.totalAsNew)}</strong></div>
@@ -1501,7 +1522,7 @@
     renderAll();
   }
 
-  function onBoatsGridClick(e) {
+  async function onBoatsGridClick(e) {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
@@ -1518,11 +1539,14 @@
       const item = getEquipmentForBoat(boatId).find(i => i.id === btn.dataset.itemId);
       if (item && applyQuote(item)) { saveData(); renderAll(); }
     } else if (action === 'toggle-rows') {
+      e.preventDefault(); // we manage open/closed state ourselves and re-render, rather than relying on native <details> toggling
       const key = `${boatId}:${equipmentState.cardSubTab[boatId] || 'equipment'}`;
-      equipmentState.collapsedTables[key] = !equipmentState.collapsedTables[key];
+      const wasCollapsed = key in equipmentState.collapsedTables ? !!equipmentState.collapsedTables[key] : true;
+      equipmentState.collapsedTables[key] = !wasCollapsed;
       localStorage.setItem(COLLAPSED_KEY, JSON.stringify(equipmentState.collapsedTables));
       renderAll();
     } else if (action === 'lookup-prices') {
+      await priceDatabaseReady;
       getEquipmentForBoat(boatId).forEach(enrichPrice);
       saveData();
       renderAll();
@@ -1596,6 +1620,45 @@
   // ---------------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------------
+  function renderPriceCatalogue() {
+    const target = document.getElementById('equipmentPriceCatalogue');
+    if (!target) return;
+    const query = (document.getElementById('equipmentPriceSearch').value || '').trim().toLowerCase();
+    const refs = pricing.references.filter(ref => `${ref.model} ${ref.category || ''}`.toLowerCase().includes(query));
+    target.innerHTML = `<p>${refs.length} of ${pricing.references.length} priced products. Per-unit USD replacement references, not historical purchase costs. Verify configuration and availability.</p>
+      <div class="equipment-table-container"><table class="equipment-table">
+      <thead><tr><th>Equipment</th><th>Category</th><th>Unit USD</th><th>Source / configuration</th><th>PDF / cruiser evidence</th></tr></thead>
+      <tbody>${refs.map(ref => `<tr><td>${escAttr(ref.model)}${ref.reviewOnly ? ' (review required)' : ''}</td>
+        <td>${escAttr(ref.category || '')}</td><td>${(ref.usd ?? pricing.toUSD(ref.amount, ref.currency)).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</td>
+        <td>${renderPriceInfo({ rrp: ref.usd ?? pricing.toUSD(ref.amount, ref.currency), priceInfo: {
+          ...ref, status: 'estimate', quantity: 1, checkedDate: ref.checkedDate || pricing.checkedDate,
+          fxDate: ref.fxDate || pricing.fx.date, fxRate: ref.fxRate ?? 1 / pricing.fx.perUSD[ref.currency],
+          fxSource: ref.fxSource || pricing.fx.source
+        } })}</td>
+        <td>${(ref.evidence || []).map(source => `<p>${escAttr(source.boat_model || 'Supplemental research')}: ${escAttr(source.kind)} -
+          ${source.source_url && /^https?:\/\//i.test(source.source_url) ? `<a href="${escAttr(source.source_url)}" target="_blank" rel="noopener noreferrer">${escAttr(source.title)}</a>` : escAttr(source.title)}
+          <br>${escAttr(source.notes)}</p>`).join('') || 'Bundled reference; database evidence unavailable.'}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  async function loadPriceDatabase() {
+    const status = document.getElementById('equipmentPriceDatabaseStatus');
+    try {
+      const response = await fetch('/api/equipment-prices', { cache: 'no-store' });
+      if (!(response.headers.get('content-type') || '').includes('application/json')) {
+        throw new Error('The local server does not support the price database.');
+      }
+      const catalogue = await response.json();
+      if (!response.ok) throw new Error(catalogue.error || 'Price database request failed.');
+      pricing.useCatalogue(catalogue);
+      status.textContent = `SQLite price database connected: ${pricing.references.length} products in USD; ${catalogue.researchRequirements.length} research requirements. Existing entered prices are not changed.`;
+    } catch (err) {
+      console.error('Equipment price database unavailable.', err);
+      status.textContent = `Price database unavailable: ${err.message} Using ${pricing.references.length} bundled references instead. Start the photo/price-enabled local_server.py.`;
+    }
+    renderPriceCatalogue();
+    renderAll();
+  }
+
   function init() {
     elements.boatsGrid = document.getElementById('equipmentBoatsGrid');
     if (!elements.boatsGrid) return; // Equipment tab not present on this page
@@ -1616,6 +1679,9 @@
     elements.commitBtn = document.getElementById('equipmentCommitBtn');
     elements.discardBtn = document.getElementById('equipmentDiscardBtn');
     elements.stagingToggleBtn = document.getElementById('equipmentStagingToggleBtn');
+    elements.importStatus = document.getElementById('equipmentImportStatus');
+    priceDatabaseReady = loadPriceDatabase();
+    document.getElementById('equipmentPriceSearch').addEventListener('input', renderPriceCatalogue);
     document.getElementById('equipmentSelectAllBtn').addEventListener('click', () => {
       equipmentState.pendingImport.forEach(row => { row._checked = true; });
       renderStaging();
@@ -1624,7 +1690,8 @@
       equipmentState.pendingImport.forEach(row => { row._checked = false; });
       renderStaging();
     });
-    document.getElementById('equipmentPriceStagedBtn').addEventListener('click', () => {
+    document.getElementById('equipmentPriceStagedBtn').addEventListener('click', async () => {
+      await priceDatabaseReady;
       const before = equipmentState.pendingImport.filter(row => row.rrp > 0).length;
       equipmentState.pendingImport.forEach(enrichPrice);
       renderStaging();
@@ -1654,7 +1721,8 @@
 
     elements.fileInput.addEventListener('change', handleFileInput);
     elements.folderInput.addEventListener('change', handleFileInput);
-    elements.parsePasteBtn.addEventListener('click', () => {
+    elements.parsePasteBtn.addEventListener('click', async () => {
+      await priceDatabaseReady;
       const rows = parsePastedContent(elements.pasteArea.value);
       if (!rows.length) { showToastLocal('No rows found in that text.'); return; }
       stageRows(rows);

@@ -468,6 +468,7 @@
 
   function setupEventListeners() {
     ensurePolarToggleControls();
+    window.addEventListener('boat-photos-updated', renderHeroCards);
 
     // Filter controls
     const filterInputs = [
@@ -895,6 +896,8 @@
       const u = isMetric ? metrics.metric : metrics.imperial;
       const coreBadge = boat.coreCategory || "Balsa / Foam";
       const marketPrice = boat.avgMarketPrice || boat.priceEstimate || "Contact Dealer";
+      const localPhotos = window.BOAT_PHOTOS.get(boat.id);
+      const localImage = localPhotos?.selected;
       const heroImage = normalizeBoatImage(boat.image, index);
       const reviewQuery = `${boat.manufacturer} ${boat.name} catamaran review`;
       const magazineReviewsUrl = `https://www.google.com/search?q=${encodeURIComponent(`${reviewQuery} (site:yachtingworld.com OR site:sailmagazine.com OR site:multihullworld.com)`)}`;
@@ -913,7 +916,7 @@
       card.className = `boat-hero-card boat${bIdx}`;
       card.innerHTML = `
         <div class="boat-hero-img-wrap">
-          <img src="${heroImage}" alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.onerror=null; this.src='https://commons.wikimedia.org/wiki/Special:FilePath/Catamaran%20at%20Straits%20Quay%2C%20Georgetown%2C%20Pulau%20Pinang%2C%20Malaysia..jpg'" />
+          <img ${localPhotos ? 'hidden' : `src="${heroImage}"`} alt="${boat.manufacturer} ${boat.name}" class="boat-hero-img" onerror="this.onerror=null; this.src='https://commons.wikimedia.org/wiki/Special:FilePath/Catamaran%20at%20Straits%20Quay%2C%20Georgetown%2C%20Pulau%20Pinang%2C%20Malaysia..jpg'" />
           <span class="boat-category-badge">${boat.category}</span>
         </div>
         <div class="boat-hero-body">
@@ -999,6 +1002,44 @@
           </section>
         </div>
       `;
+      if (localPhotos) {
+        const image = card.querySelector('.boat-hero-img');
+        const photoLabel = document.createElement('label');
+        const photoMessage = document.createElement('span');
+        photoLabel.className = 'eq-folder-hint';
+        photoMessage.textContent = localImage ? 'Actual boat photo: ' : 'Choose an exterior hull photo (no exterior filename was identified): ';
+        photoLabel.appendChild(photoMessage);
+        image.onerror = null;
+        if (localImage) {
+          image.onerror = () => {
+            image.hidden = true;
+            photoMessage.textContent = 'Local photo unavailable. Check OneDrive or choose another exterior photo.';
+          };
+          image.hidden = false;
+          image.src = localImage;
+          image.alt = `${boat.manufacturer} ${boat.name} - local boat photo`;
+        }
+        const select = document.createElement('select');
+        select.className = 'eq-input';
+        select.setAttribute('aria-label', `Exterior photo for ${boat.name}`);
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'Choose a local hull photo';
+        select.appendChild(empty);
+        localPhotos.photos.forEach(photo => {
+          const option = document.createElement('option');
+          option.value = photo.url;
+          option.textContent = photo.name;
+          select.appendChild(option);
+        });
+        select.value = localImage || '';
+        select.addEventListener('change', () => {
+          try { window.BOAT_PHOTOS.choose(boat.id, select.value); }
+          catch (err) { showToast(err.message); }
+        });
+        photoLabel.appendChild(select);
+        card.querySelector('.boat-hero-body').prepend(photoLabel);
+      }
       elements.heroCardsContainer.appendChild(card);
     });
   }

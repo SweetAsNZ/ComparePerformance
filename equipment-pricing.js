@@ -97,7 +97,13 @@
       url: 'https://www.marinepartsonly.com/products/garmin-gnd-10-black-box-bridge-nexus-to-nmea-2000-data-converter-for-marine-instruments-and-sensors' },
     { pattern: /\b(?:PredictWind\s*)?DataHub\b(?!\s*Pro)/i, model: 'PredictWind DataHub (original)', amount: 299, currency: 'USD',
       note: 'Hardware only; subscriptions are not included. Not the Pro model.',
-      url: 'https://www.predictwind.com/datahub/family' }
+      url: 'https://www.predictwind.com/datahub/family' },
+    { pattern: /\b(?:Victron\s+)?Ekrano\s*GX\b/i, model: 'Victron Ekrano GX', amount: 619.65, currency: 'USD',
+      note: 'BPP900480100 integrated controller/display. Reported owner installation on Excess 12; not a blanket suitability recommendation.',
+      url: 'https://www.invertersupply.com/index.php?main_page=product_info&products_id=203093' },
+    { pattern: /\b(?:Victron\s+)?SmartSolar\s*(?:MPPT\s*)?75\s*\/\s*15\b/i, model: 'Victron SmartSolar MPPT 75/15', amount: 70.55, currency: 'USD',
+      note: 'SCC075015060R SmartSolar replacement basis for an Excess 12 owner-reported MPPT 75/15; confirm controller family and array sizing.',
+      url: 'https://www.invertersupply.com/index.php?main_page=product_info&products_id=31071' }
   ];
   const researchNotes = [
     { pattern: /\b(?:Onan|MDKDM)\b/i, model: 'Onan generator', note: 'Dealer quote required for the exact generator, voltage and installation.', url: 'https://www.cummins.com/generators/marine' },
@@ -154,8 +160,9 @@
     if (!quantity || quantity > 1000) return null;
     return {
       status: 'estimate', model: ref.model, amount: ref.amount, currency: ref.currency,
-      quantity, usd: toUSD(ref.amount * quantity, ref.currency), url: ref.url,
-      note: ref.note || '', checkedDate, fxDate: fx.date, fxRate: 1 / fx.perUSD[ref.currency], fxSource: fx.source
+      quantity, usd: Math.round(ref.amount * quantity * (ref.fxRate ?? 1 / fx.perUSD[ref.currency]) * 100) / 100, url: ref.url,
+      note: ref.note || '', checkedDate: ref.checkedDate || checkedDate,
+      fxDate: ref.fxDate || fx.date, fxRate: ref.fxRate ?? 1 / fx.perUSD[ref.currency], fxSource: ref.fxSource || fx.source
     };
   }
 
@@ -163,8 +170,9 @@
     if (!name || /\b(used|second[- ]hand)\b/i.test(name)) return null;
     const components = matchingReferences(name).map(ref => ({
       model: ref.model, amount: ref.amount, currency: ref.currency,
-      usd: toUSD(ref.amount, ref.currency), url: ref.url, note: ref.note || '', checkedDate,
-      fxDate: fx.date, fxSource: fx.source
+      usd: Math.round(ref.amount * (ref.fxRate ?? 1 / fx.perUSD[ref.currency]) * 100) / 100,
+      url: ref.url, note: ref.note || '', checkedDate: ref.checkedDate || checkedDate,
+      fxDate: ref.fxDate || fx.date, fxSource: ref.fxSource || fx.source
     }));
     const notes = researchNotes.filter(ref => ref.pattern.test(name));
     if (!components.length && !notes.length) return null;
@@ -188,5 +196,18 @@
     };
   }
 
-  root.EQUIPMENT_PRICING = { fx, references, toUSD, currencyOf, lookup, research, quote };
+  function useCatalogue(catalogue) {
+    if (!Array.isArray(catalogue.references) || !catalogue.references.length) throw new Error('Price database returned no products.');
+    const loaded = catalogue.references.map(ref => {
+      if (!ref.model || !(ref.amount > 0) || !fx.perUSD[ref.currency] || !/^https?:\/\//i.test(ref.url)
+        || !(ref.fxRate > 0) || !ref.checkedDate || !ref.fxDate || !ref.pattern) {
+        throw new Error('Price database returned an invalid price reference.');
+      }
+      return { ...ref, pattern: new RegExp(ref.pattern, ref.flags || 'i'),
+        requires: ref.requires ? new RegExp(ref.requires, ref.requiresFlags || 'i') : undefined };
+    });
+    references.splice(0, references.length, ...loaded);
+  }
+
+  root.EQUIPMENT_PRICING = { fx, checkedDate, references, researchNotes, toUSD, currencyOf, lookup, research, quote, useCatalogue };
 })(typeof window === 'undefined' ? globalThis : window);

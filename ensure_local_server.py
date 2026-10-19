@@ -5,6 +5,8 @@ import sys
 import time
 import webbrowser
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
 
 PORT = 8000
 HOST = "127.0.0.1"
@@ -21,7 +23,7 @@ def port_is_open(host: str, port: int) -> bool:
 
 def start_server(host: str, port: int) -> bool:
     try:
-        cmd = [sys.executable, "-m", "http.server", str(port), "--bind", host]
+        cmd = [sys.executable, str(PROJECT_ROOT / "local_server.py"), "--port", str(port), "--bind", host]
         subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
@@ -38,7 +40,7 @@ def start_server(host: str, port: int) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Start a local web server for the Catamaran Comparison app.")
-    parser.add_argument("--host", default=HOST, help=f"Bind address (default: {HOST})")
+    parser.add_argument("--host", choices=["127.0.0.1", "localhost"], default=HOST, help=f"Bind address (default: {HOST})")
     parser.add_argument("--port", type=int, default=PORT, help=f"Port to serve on (default: {PORT})")
     parser.add_argument("--open-browser", action="store_true", help="Open the local site in the default browser once it starts")
     args = parser.parse_args()
@@ -47,6 +49,12 @@ def main() -> int:
 
     if port_is_open(args.host, args.port):
         print(f"Server already running at {url}")
+        try:
+            with urlopen(f"{url}api/health", timeout=2) as response:
+                if b"compare-performance-local" not in response.read():
+                    print("Warning: this server does not support local boat photos. Restart with local_server.py.")
+        except (URLError, TimeoutError):
+            print("Warning: this server does not support local boat photos. Restart with local_server.py.")
         if args.open_browser:
             webbrowser.open(url)
         return 0
